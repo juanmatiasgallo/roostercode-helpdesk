@@ -1,0 +1,17 @@
+# Java / Maven
+backend/target/
+*.class
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Entorno
+.env
+.env.local
+
+# Editores / SO
+.DS_Store
+.idea/
+.vscode/
