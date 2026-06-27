@@ -2,7 +2,7 @@
 
 Contexto permanente del proyecto para Claude Code. Mantener este archivo corto y
 estable. El plan y el roadmap NO van acá: viven en Obsidian (documento
-"007 - Diseño Técnico del Módulo Help Desk").
+"007 - Diseño Técnico del Módulo Help Desk" y la "Bitácora de Cambios — Help Desk").
 
 ## Qué es este proyecto
 
@@ -11,9 +11,9 @@ estable. El plan y el roadmap NO van acá: viven en Obsidian (documento
 - **Estrategia (ADR-001): producto primero.** RoosterCore (la base reutilizable)
   se **extrae** de lo que se repite entre productos. NO se diseña por adelantado.
   No crear abstracciones genéricas "por si acaso".
-- **Estado actual:** walking skeleton en producción. Solo se pueden **crear** y
-  **listar** tickets. Todavía NO hay login, comentarios, historial ni
-  transiciones de estado (eso viene después, ver doc 007).
+- **Estado actual:** en producción. Se pueden **crear**, **listar** y **cambiar
+  el estado** de los tickets (iniciar / resolver / cerrar / reabrir). Todavía NO
+  hay login, comentarios, ni clientes como entidad (ver roadmap en doc 007).
 
 ## Arquitectura — reglas que no se rompen
 
@@ -32,7 +32,7 @@ estable. El plan y el roadmap NO van acá: viven en Obsidian (documento
 - **Backend:** Java 21, Spring Boot 3.3.x (Web, Data JPA, Validation), Flyway,
   PostgreSQL. Build con Maven.
 - **Frontend:** Next.js 14 (App Router), TypeScript.
-- **Base de datos:** PostgreSQL.
+- **Base de datos:** PostgreSQL. Versión de esquema actual: **V2**.
 - **Despliegue:** GitHub → EasyPanel (Docker) en VPS. Push a `main` redespliega.
 
 ## Estructura del repo
@@ -40,7 +40,8 @@ estable. El plan y el roadmap NO van acá: viven en Obsidian (documento
 ```
 backend/    Spring Boot (paquete com.roostercode.helpdesk; subpaquetes ticket/, config/)
 frontend/   Next.js (carpeta app/)
-backend/Dockerfile, frontend/Dockerfile
+docs/       Especificaciones de funcionalidades (para implementar)
+backend/Dockerfile, frontend/Dockerfile, CLAUDE.md
 ```
 
 ## Build y ejecución
@@ -54,16 +55,17 @@ backend/Dockerfile, frontend/Dockerfile
 ## Convenciones de código (IMPORTANTE)
 
 - Claves primarias UUID (`GenerationType.UUID`).
-- **Flyway es el dueño del esquema.** Las migraciones van en
-  `backend/src/main/resources/db/migration`, nombradas `V2__...`, `V3__...`
-  (la `V1` ya existe). NUNCA editar una migración ya aplicada; siempre crear una
-  nueva.
+- **Flyway es el dueño del esquema.** Migraciones en
+  `backend/src/main/resources/db/migration`, nombradas `V3__...`, `V4__...`
+  (ya existen `V1` y `V2`). NUNCA editar una migración ya aplicada; crear una nueva.
 - Hibernate `ddl-auto = none` (Hibernate no crea ni modifica tablas).
-- Enums de Java mapeados con `@Enumerated(EnumType.STRING)`; en la base son
-  columnas `varchar` con `CHECK`.
+- Enums de Java con `@Enumerated(EnumType.STRING)`; en la base, `varchar` + `CHECK`.
 - La API va versionada bajo `/api/v1`.
-- CORS se configura por variable de entorno; no hardcodear dominios.
+- CORS por variable de entorno; no hardcodear dominios.
 - Fechas en `timestamptz`.
+- Errores con excepciones dedicadas y `@ExceptionHandler` (404 = no encontrado,
+  409 = conflicto/transición inválida). La validación de transiciones de estado
+  vive en un solo lugar; reutilizarla, no duplicarla.
 
 ## Qué NO hacer
 
@@ -78,13 +80,20 @@ backend/Dockerfile, frontend/Dockerfile
 ## Modelo de dominio actual
 
 - **Ticket:** id (UUID), numero (autogenerado), titulo, descripcion,
-  clienteNombre, prioridad (BAJA | MEDIA | ALTA | URGENTE),
-  estado (ABIERTO | EN_PROGRESO | RESUELTO | CERRADO), createdAt.
-- Endpoints actuales: `POST /api/v1/tickets`, `GET /api/v1/tickets`.
+  clienteNombre (texto libre por ahora), prioridad (BAJA | MEDIA | ALTA | URGENTE),
+  estado (ABIERTO | EN_PROGRESO | RESUELTO | CERRADO), resueltoEn, cerradoEn,
+  createdAt.
+- Endpoints actuales:
+  - `POST /api/v1/tickets` — crear
+  - `GET  /api/v1/tickets` — listar
+  - `POST /api/v1/tickets/{id}/iniciar` — ABIERTO -> EN_PROGRESO
+  - `POST /api/v1/tickets/{id}/resolver` — -> RESUELTO
+  - `POST /api/v1/tickets/{id}/cerrar` — RESUELTO -> CERRADO
+  - `POST /api/v1/tickets/{id}/reabrir` — -> ABIERTO / EN_PROGRESO
 
 ## Roadmap
 
-El diseño completo y el orden de las funcionalidades están en Obsidian, documento
-"007 - Diseño Técnico del Módulo Help Desk". Próximas funcionalidades previstas:
-asignar agente, comentarios, historial, transiciones de estado, login.
-Implementar de a una, chica y completa.
+El diseño y el orden de las funcionalidades están en Obsidian (doc 007) y el
+avance se registra en la "Bitácora de Cambios — Help Desk". Próximas:
+identidad visual, login/seguridad, notas con autoría, archivar, clientes como
+entidad, tipo/categoría, filtros, reportes. Implementar de a una, chica y completa.
