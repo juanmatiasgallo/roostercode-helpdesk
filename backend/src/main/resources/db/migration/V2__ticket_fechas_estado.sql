@@ -1,0 +1,3 @@
+ALTER TABLE ticket
+    ADD COLUMN resuelto_en TIMESTAMPTZ NULL,
+    ADD COLUMN cerrado_en  TIMESTAMPTZ NULL;

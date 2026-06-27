@@ -37,6 +37,12 @@ public class Ticket {
     @Column(name = "created_at", insertable = false, updatable = false)
     private OffsetDateTime createdAt;
 
+    @Column(name = "resuelto_en")
+    private OffsetDateTime resueltoEn;
+
+    @Column(name = "cerrado_en")
+    private OffsetDateTime cerradoEn;
+
     protected Ticket() {
         // requerido por JPA
     }
@@ -49,6 +55,41 @@ public class Ticket {
         this.estado = EstadoTicket.ABIERTO;
     }
 
+    public void aplicarTransicion(String accion) {
+        switch (accion) {
+            case "iniciar" -> {
+                if (estado != EstadoTicket.ABIERTO)
+                    throw new TransicionInvalidaException("Solo se puede iniciar un ticket ABIERTO (estado actual: " + estado + ")");
+                estado = EstadoTicket.EN_PROGRESO;
+            }
+            case "resolver" -> {
+                if (estado != EstadoTicket.ABIERTO && estado != EstadoTicket.EN_PROGRESO)
+                    throw new TransicionInvalidaException("Solo se puede resolver un ticket ABIERTO o EN_PROGRESO (estado actual: " + estado + ")");
+                estado = EstadoTicket.RESUELTO;
+                resueltoEn = OffsetDateTime.now();
+            }
+            case "cerrar" -> {
+                if (estado != EstadoTicket.RESUELTO)
+                    throw new TransicionInvalidaException("Solo se puede cerrar un ticket RESUELTO (estado actual: " + estado + ")");
+                estado = EstadoTicket.CERRADO;
+                cerradoEn = OffsetDateTime.now();
+            }
+            case "reabrir" -> {
+                if (estado == EstadoTicket.CERRADO) {
+                    estado = EstadoTicket.ABIERTO;
+                    cerradoEn = null;
+                    resueltoEn = null;
+                } else if (estado == EstadoTicket.RESUELTO) {
+                    estado = EstadoTicket.EN_PROGRESO;
+                    resueltoEn = null;
+                } else {
+                    throw new TransicionInvalidaException("Solo se puede reabrir un ticket RESUELTO o CERRADO (estado actual: " + estado + ")");
+                }
+            }
+            default -> throw new TransicionInvalidaException("Acción desconocida: " + accion);
+        }
+    }
+
     public UUID getId() { return id; }
     public Long getNumero() { return numero; }
     public String getTitulo() { return titulo; }
@@ -57,4 +98,6 @@ public class Ticket {
     public Prioridad getPrioridad() { return prioridad; }
     public EstadoTicket getEstado() { return estado; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
+    public OffsetDateTime getResueltoEn() { return resueltoEn; }
+    public OffsetDateTime getCerradoEn() { return cerradoEn; }
 }

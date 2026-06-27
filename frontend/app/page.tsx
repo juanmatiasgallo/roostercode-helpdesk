@@ -12,8 +12,33 @@ type Ticket = {
   descripcion: string;
   clienteNombre: string | null;
   prioridad: string;
-  estado: string;
+  estado: "ABIERTO" | "EN_PROGRESO" | "RESUELTO" | "CERRADO";
   createdAt: string;
+  resueltoEn: string | null;
+  cerradoEn: string | null;
+};
+
+type Accion = "iniciar" | "resolver" | "cerrar" | "reabrir";
+
+const ACCIONES_POR_ESTADO: Record<Ticket["estado"], Accion[]> = {
+  ABIERTO:     ["iniciar", "resolver"],
+  EN_PROGRESO: ["resolver"],
+  RESUELTO:    ["cerrar", "reabrir"],
+  CERRADO:     ["reabrir"],
+};
+
+const LABEL_ACCION: Record<Accion, string> = {
+  iniciar:  "Iniciar",
+  resolver: "Resolver",
+  cerrar:   "Cerrar",
+  reabrir:  "Reabrir",
+};
+
+const COLOR_ESTADO: Record<Ticket["estado"], string> = {
+  ABIERTO:     "#1565c0",
+  EN_PROGRESO: "#e65100",
+  RESUELTO:    "#2e7d32",
+  CERRADO:     "#616161",
 };
 
 const PRIORIDADES = ["BAJA", "MEDIA", "ALTA", "URGENTE"];
@@ -26,6 +51,7 @@ export default function Home() {
   const [prioridad, setPrioridad] = useState("MEDIA");
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorTransicion, setErrorTransicion] = useState<string | null>(null);
 
   async function cargarTickets() {
     try {
@@ -41,6 +67,22 @@ export default function Home() {
   useEffect(() => {
     cargarTickets();
   }, []);
+
+  async function transicionarTicket(id: string, accion: Accion) {
+    setErrorTransicion(null);
+    try {
+      const res = await fetch(`${API}/api/v1/tickets/${id}/${accion}`, { method: "POST" });
+      if (res.status === 409) {
+        const body = await res.json();
+        setErrorTransicion(body.error ?? "Transición inválida");
+        return;
+      }
+      if (!res.ok) throw new Error("Error inesperado");
+      await cargarTickets();
+    } catch {
+      setErrorTransicion("No se pudo conectar con el backend.");
+    }
+  }
 
   async function crearTicket() {
     if (!titulo.trim() || !descripcion.trim()) return;
@@ -85,20 +127,35 @@ export default function Home() {
       </section>
 
       {error && <p style={{ color: "#b00020" }}>{error}</p>}
+      {errorTransicion && <p style={{ color: "#b00020" }}>{errorTransicion}</p>}
 
       <section style={{ marginTop: 24 }}>
         <h2 style={{ fontSize: 16 }}>Tickets ({tickets.length})</h2>
         {tickets.length === 0 && <p style={{ color: "#888" }}>Todavía no hay tickets. Creá el primero arriba.</p>}
         {tickets.map((t) => (
           <div key={t.id} style={card}>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <strong>#{t.numero} · {t.titulo}</strong>
-              <span style={badge}>{t.prioridad}</span>
+              <div style={{ display: "flex", gap: 6 }}>
+                <span style={{ ...badge, background: COLOR_ESTADO[t.estado], color: "#fff" }}>{t.estado}</span>
+                <span style={badge}>{t.prioridad}</span>
+              </div>
             </div>
             <p style={{ margin: "6px 0", color: "#444" }}>{t.descripcion}</p>
             <small style={{ color: "#888" }}>
-              {t.clienteNombre ? `Cliente: ${t.clienteNombre} · ` : ""}Estado: {t.estado}
+              {t.clienteNombre ? `Cliente: ${t.clienteNombre}` : ""}
             </small>
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              {ACCIONES_POR_ESTADO[t.estado].map((accion) => (
+                <button
+                  key={accion}
+                  style={botonAccion}
+                  onClick={() => transicionarTicket(t.id, accion)}
+                >
+                  {LABEL_ACCION[accion]}
+                </button>
+              ))}
+            </div>
           </div>
         ))}
       </section>
@@ -136,4 +193,13 @@ const badge: React.CSSProperties = {
   borderRadius: 6,
   padding: "2px 8px",
   fontSize: 12,
+};
+const botonAccion: React.CSSProperties = {
+  background: "#f0f0f0",
+  color: "#333",
+  border: "1px solid #ccc",
+  borderRadius: 6,
+  padding: "5px 12px",
+  fontSize: 13,
+  cursor: "pointer",
 };
