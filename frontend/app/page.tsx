@@ -34,14 +34,11 @@ const LABEL_ACCION: Record<Accion, string> = {
   reabrir:  "Reabrir",
 };
 
-const COLOR_ESTADO: Record<Ticket["estado"], string> = {
-  ABIERTO:     "#1565c0",
-  EN_PROGRESO: "#e65100",
-  RESUELTO:    "#2e7d32",
-  CERRADO:     "#616161",
-};
-
 const PRIORIDADES = ["BAJA", "MEDIA", "ALTA", "URGENTE"];
+
+function estadoClass(estado: Ticket["estado"]) {
+  return `badge-estado estado-${estado.toLowerCase().replace("_", "-")}`;
+}
 
 export default function Home() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -107,99 +104,85 @@ export default function Home() {
   }
 
   return (
-    <main style={{ maxWidth: 760, margin: "0 auto", padding: "32px 20px" }}>
-      <h1 style={{ fontSize: 24, marginBottom: 4 }}>RoosterCode · Help Desk</h1>
-      <p style={{ color: "#666", marginTop: 0 }}>Walking skeleton — v0.1</p>
+    <>
+      <header className="app-header">
+        <span className="app-header-brand">
+          <span>Rooster</span>Code · Help Desk
+        </span>
+      </header>
 
-      <section style={card}>
-        <h2 style={{ fontSize: 16, marginTop: 0 }}>Nuevo ticket</h2>
-        <input style={input} placeholder="Título" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
-        <textarea style={{ ...input, height: 80 }} placeholder="Descripción" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
-        <input style={input} placeholder="Cliente (opcional)" value={clienteNombre} onChange={(e) => setClienteNombre(e.target.value)} />
-        <select style={input} value={prioridad} onChange={(e) => setPrioridad(e.target.value)}>
-          {PRIORIDADES.map((p) => (
-            <option key={p} value={p}>{p}</option>
-          ))}
-        </select>
-        <button style={boton} onClick={crearTicket} disabled={cargando}>
-          {cargando ? "Creando..." : "Crear ticket"}
-        </button>
-      </section>
+      <main className="app-main">
+        <section className="section-card">
+          <h2 className="section-title">Nuevo ticket</h2>
+          <input
+            className="form-input"
+            placeholder="Título"
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+          />
+          <textarea
+            className="form-input"
+            style={{ height: 80, resize: "vertical" }}
+            placeholder="Descripción"
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+          />
+          <input
+            className="form-input"
+            placeholder="Cliente (opcional)"
+            value={clienteNombre}
+            onChange={(e) => setClienteNombre(e.target.value)}
+          />
+          <select
+            className="form-input"
+            value={prioridad}
+            onChange={(e) => setPrioridad(e.target.value)}
+          >
+            {PRIORIDADES.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          <button className="btn-primary" onClick={crearTicket} disabled={cargando}>
+            {cargando ? "Creando..." : "Crear ticket"}
+          </button>
+        </section>
 
-      {error && <p style={{ color: "#b00020" }}>{error}</p>}
-      {errorTransicion && <p style={{ color: "#b00020" }}>{errorTransicion}</p>}
+        {error && <p className="error-msg">{error}</p>}
+        {errorTransicion && <p className="error-msg">{errorTransicion}</p>}
 
-      <section style={{ marginTop: 24 }}>
-        <h2 style={{ fontSize: 16 }}>Tickets ({tickets.length})</h2>
-        {tickets.length === 0 && <p style={{ color: "#888" }}>Todavía no hay tickets. Creá el primero arriba.</p>}
-        {tickets.map((t) => (
-          <div key={t.id} style={card}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <strong>#{t.numero} · {t.titulo}</strong>
-              <div style={{ display: "flex", gap: 6 }}>
-                <span style={{ ...badge, background: COLOR_ESTADO[t.estado], color: "#fff" }}>{t.estado}</span>
-                <span style={badge}>{t.prioridad}</span>
+        <section style={{ marginTop: 24 }}>
+          <h2 className="section-heading">Tickets ({tickets.length})</h2>
+          {tickets.length === 0 && (
+            <p className="empty-msg">Todavía no hay tickets. Creá el primero arriba.</p>
+          )}
+          {tickets.map((t) => (
+            <div key={t.id} className="ticket-card">
+              <div className="ticket-header">
+                <span className="ticket-numero-titulo">#{t.numero} · {t.titulo}</span>
+                <div className="ticket-badges">
+                  <span className={estadoClass(t.estado)}>{t.estado}</span>
+                  <span className="badge-prioridad">{t.prioridad}</span>
+                </div>
+              </div>
+              <p className="ticket-descripcion">{t.descripcion}</p>
+              {t.clienteNombre && (
+                <span className="ticket-cliente">Cliente: {t.clienteNombre}</span>
+              )}
+              <div className="ticket-acciones">
+                {ACCIONES_POR_ESTADO[t.estado].map((accion) => (
+                  <button
+                    key={accion}
+                    className="btn-secondary"
+                    onClick={() => transicionarTicket(t.id, accion)}
+                  >
+                    {LABEL_ACCION[accion]}
+                  </button>
+                ))}
               </div>
             </div>
-            <p style={{ margin: "6px 0", color: "#444" }}>{t.descripcion}</p>
-            <small style={{ color: "#888" }}>
-              {t.clienteNombre ? `Cliente: ${t.clienteNombre}` : ""}
-            </small>
-            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              {ACCIONES_POR_ESTADO[t.estado].map((accion) => (
-                <button
-                  key={accion}
-                  style={botonAccion}
-                  onClick={() => transicionarTicket(t.id, accion)}
-                >
-                  {LABEL_ACCION[accion]}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-      </section>
-    </main>
+          ))}
+        </section>
+      </main>
+    </>
   );
 }
-
-const card: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #e3e3e3",
-  borderRadius: 10,
-  padding: 16,
-  marginBottom: 12,
-};
-const input: React.CSSProperties = {
-  display: "block",
-  width: "100%",
-  padding: "10px 12px",
-  marginBottom: 10,
-  border: "1px solid #ccc",
-  borderRadius: 8,
-  fontSize: 14,
-};
-const boton: React.CSSProperties = {
-  background: "#c0392b",
-  color: "#fff",
-  border: "none",
-  borderRadius: 8,
-  padding: "10px 18px",
-  fontSize: 14,
-  cursor: "pointer",
-};
-const badge: React.CSSProperties = {
-  background: "#f0f0f0",
-  borderRadius: 6,
-  padding: "2px 8px",
-  fontSize: 12,
-};
-const botonAccion: React.CSSProperties = {
-  background: "#f0f0f0",
-  color: "#333",
-  border: "1px solid #ccc",
-  borderRadius: 6,
-  padding: "5px 12px",
-  fontSize: 13,
-  cursor: "pointer",
-};
