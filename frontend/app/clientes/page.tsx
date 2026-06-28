@@ -30,7 +30,7 @@ const DEPARTAMENTOS: [string, string][] = [
 
 const DEPTO_LABEL = Object.fromEntries(DEPARTAMENTOS);
 
-type Proveedor = {
+type Cliente = {
   id: string;
   empresa: string;
   rut: string;
@@ -54,9 +54,9 @@ function jsonHeaders(): Record<string, string> {
   return { "Content-Type": "application/json", ...authHeader() };
 }
 
-export default function Proveedores() {
+export default function Clientes() {
   const router = useRouter();
-  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
   const [emailUsuario, setEmailUsuario] = useState<string | null>(null);
 
   const [empresa, setEmpresa] = useState("");
@@ -81,16 +81,16 @@ export default function Proveedores() {
     if (res.ok) setEmailUsuario((await res.json()).email);
   }
 
-  async function cargarProveedores() {
-    const res = await fetch(`${API}/api/v1/proveedores`, { headers: authHeader() });
+  async function cargarClientes() {
+    const res = await fetch(`${API}/api/v1/clientes`, { headers: authHeader() });
     if (res.status === 401) { manejarNoAutorizado(); return; }
-    if (res.ok) setProveedores(await res.json());
+    if (res.ok) setClientes(await res.json());
   }
 
   useEffect(() => {
     if (!getToken()) { router.push("/login"); return; }
     cargarUsuario();
-    cargarProveedores();
+    cargarClientes();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function cerrarSesion() {
@@ -98,12 +98,12 @@ export default function Proveedores() {
     router.push("/login");
   }
 
-  async function crearProveedor() {
+  async function crearCliente() {
     setCargando(true);
     setErroresCampos({});
     setErrorGeneral(null);
     try {
-      const res = await fetch(`${API}/api/v1/proveedores`, {
+      const res = await fetch(`${API}/api/v1/clientes`, {
         method: "POST",
         headers: jsonHeaders(),
         body: JSON.stringify({
@@ -123,7 +123,7 @@ export default function Proveedores() {
       }
       if (res.status === 409) {
         const body = await res.json();
-        setErrorGeneral(body.error ?? "Ya existe un proveedor con esos datos");
+        setErrorGeneral(body.error ?? "Ya existe un cliente con esos datos");
         return;
       }
       if (!res.ok) throw new Error();
@@ -133,7 +133,7 @@ export default function Proveedores() {
       setDireccion("");
       setDepartamento("");
       setEmail("");
-      await cargarProveedores();
+      await cargarClientes();
     } catch {
       setErrorGeneral("No se pudo conectar con el backend.");
     } finally {
@@ -170,8 +170,8 @@ export default function Proveedores() {
         </span>
         <nav style={{ display: "flex", gap: 4, marginLeft: 20 }}>
           <Link href="/" style={navLink}>Tickets</Link>
-          <span style={navLinkActive}>Proveedores</span>
-          <Link href="/clientes" style={navLink}>Clientes</Link>
+          <Link href="/proveedores" style={navLink}>Proveedores</Link>
+          <span style={navLinkActive}>Clientes</span>
         </nav>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
           {emailUsuario && (
@@ -185,7 +185,7 @@ export default function Proveedores() {
 
       <main className="app-main">
         <section className="section-card">
-          <h2 className="section-title">Nuevo proveedor</h2>
+          <h2 className="section-title">Nuevo cliente</h2>
 
           <input
             className="form-input"
@@ -243,32 +243,32 @@ export default function Proveedores() {
 
           {errorGeneral && <p className="error-msg">{errorGeneral}</p>}
 
-          <button className="btn-primary" onClick={crearProveedor} disabled={cargando}>
-            {cargando ? "Guardando..." : "Agregar proveedor"}
+          <button className="btn-primary" onClick={crearCliente} disabled={cargando}>
+            {cargando ? "Guardando..." : "Agregar cliente"}
           </button>
         </section>
 
         <section style={{ marginTop: 24 }}>
-          <h2 className="section-heading">Proveedores ({proveedores.length})</h2>
-          {proveedores.length === 0 && (
-            <p className="empty-msg">Todavía no hay proveedores. Cargá el primero arriba.</p>
+          <h2 className="section-heading">Clientes ({clientes.length})</h2>
+          {clientes.length === 0 && (
+            <p className="empty-msg">Todavía no hay clientes. Cargá el primero arriba.</p>
           )}
-          {proveedores.map((p) => (
-            <div key={p.id} className="ticket-card">
+          {clientes.map((c) => (
+            <div key={c.id} className="ticket-card">
               <div className="ticket-header">
-                <span className="ticket-numero-titulo">{p.empresa}</span>
+                <span className="ticket-numero-titulo">{c.empresa}</span>
                 <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-                  {DEPTO_LABEL[p.departamento] ?? p.departamento}
+                  {DEPTO_LABEL[c.departamento] ?? c.departamento}
                 </span>
               </div>
               <p className="ticket-descripcion" style={{ marginBottom: 2 }}>
-                <strong>RUT:</strong> {p.rut}
+                <strong>RUT:</strong> {c.rut}
               </p>
               <p className="ticket-descripcion" style={{ marginBottom: 2 }}>
-                <strong>Email:</strong> {p.email} · <strong>Tel:</strong> {p.telefono}
+                <strong>Email:</strong> {c.email} · <strong>Tel:</strong> {c.telefono}
               </p>
               <p className="ticket-descripcion" style={{ marginBottom: 0 }}>
-                {p.direccion}
+                {c.direccion}
               </p>
             </div>
           ))}

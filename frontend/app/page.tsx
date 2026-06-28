@@ -166,6 +166,9 @@ export default function Home() {
           <Link href="/proveedores" style={{ padding: "4px 10px", borderRadius: "var(--radius-sm)", fontSize: 13, color: "var(--color-text-muted)", textDecoration: "none" }}>
             Proveedores
           </Link>
+          <Link href="/clientes" style={{ padding: "4px 10px", borderRadius: "var(--radius-sm)", fontSize: 13, color: "var(--color-text-muted)", textDecoration: "none" }}>
+            Clientes
+          </Link>
         </nav>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
           {emailUsuario && (
