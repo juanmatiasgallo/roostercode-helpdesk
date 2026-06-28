@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import ComentariosTicket from "./components/ComentariosTicket";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -64,6 +65,15 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [errorTransicion, setErrorTransicion] = useState<string | null>(null);
   const [emailUsuario, setEmailUsuario] = useState<string | null>(null);
+  const [comentariosAbiertos, setComentariosAbiertos] = useState<Set<string>>(new Set());
+
+  function toggleComentarios(id: string) {
+    setComentariosAbiertos((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
+      return next;
+    });
+  }
 
   function manejarNoAutorizado() {
     localStorage.removeItem("token");
@@ -225,7 +235,20 @@ export default function Home() {
                     {LABEL_ACCION[accion]}
                   </button>
                 ))}
+                <button
+                  className="btn-secondary"
+                  onClick={() => toggleComentarios(t.id)}
+                >
+                  {comentariosAbiertos.has(t.id) ? "Ocultar comentarios" : "Comentarios"}
+                </button>
               </div>
+              {comentariosAbiertos.has(t.id) && (
+                <ComentariosTicket
+                  ticketId={t.id}
+                  token={getToken()}
+                  onUnauthorized={manejarNoAutorizado}
+                />
+              )}
             </div>
           ))}
         </section>
