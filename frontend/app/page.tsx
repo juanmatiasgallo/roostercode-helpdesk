@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
-// La URL del backend se inyecta en el build. En EasyPanel se setea como NEXT_PUBLIC_API_URL.
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 type Ticket = {
@@ -40,7 +40,21 @@ function estadoClass(estado: Ticket["estado"]) {
   return `badge-estado estado-${estado.toLowerCase().replace("_", "-")}`;
 }
 
+function getToken(): string | null {
+  return typeof window !== "undefined" ? localStorage.getItem("token") : null;
+}
+
+function authHeader(): Record<string, string> {
+  const t = getToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+function jsonHeaders(): Record<string, string> {
+  return { "Content-Type": "application/json", ...authHeader() };
+}
+
 export default function Home() {
+  const router = useRouter();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
@@ -49,32 +63,56 @@ export default function Home() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorTransicion, setErrorTransicion] = useState<string | null>(null);
+  const [emailUsuario, setEmailUsuario] = useState<string | null>(null);
+
+  function manejarNoAutorizado() {
+    localStorage.removeItem("token");
+    router.push("/login");
+  }
+
+  async function cargarUsuario() {
+    const res = await fetch(`${API}/api/v1/auth/me`, { headers: authHeader() });
+    if (res.status === 401) { manejarNoAutorizado(); return; }
+    if (res.ok) setEmailUsuario((await res.json()).email);
+  }
 
   async function cargarTickets() {
     try {
-      const res = await fetch(`${API}/api/v1/tickets`);
-      if (!res.ok) throw new Error("No se pudieron cargar los tickets");
+      const res = await fetch(`${API}/api/v1/tickets`, { headers: authHeader() });
+      if (res.status === 401) { manejarNoAutorizado(); return; }
+      if (!res.ok) throw new Error();
       setTickets(await res.json());
       setError(null);
-    } catch (e) {
+    } catch {
       setError("No se pudo conectar con el backend. ¿Está corriendo y bien configurada la URL?");
     }
   }
 
   useEffect(() => {
+    if (!getToken()) { router.push("/login"); return; }
+    cargarUsuario();
     cargarTickets();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function cerrarSesion() {
+    localStorage.removeItem("token");
+    router.push("/login");
+  }
 
   async function transicionarTicket(id: string, accion: Accion) {
     setErrorTransicion(null);
     try {
-      const res = await fetch(`${API}/api/v1/tickets/${id}/${accion}`, { method: "POST" });
+      const res = await fetch(`${API}/api/v1/tickets/${id}/${accion}`, {
+        method: "POST",
+        headers: authHeader(),
+      });
+      if (res.status === 401) { manejarNoAutorizado(); return; }
       if (res.status === 409) {
         const body = await res.json();
         setErrorTransicion(body.error ?? "Transición inválida");
         return;
       }
-      if (!res.ok) throw new Error("Error inesperado");
+      if (!res.ok) throw new Error();
       await cargarTickets();
     } catch {
       setErrorTransicion("No se pudo conectar con el backend.");
@@ -87,16 +125,17 @@ export default function Home() {
     try {
       const res = await fetch(`${API}/api/v1/tickets`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: jsonHeaders(),
         body: JSON.stringify({ titulo, descripcion, clienteNombre, prioridad }),
       });
-      if (!res.ok) throw new Error("No se pudo crear el ticket");
+      if (res.status === 401) { manejarNoAutorizado(); return; }
+      if (!res.ok) throw new Error();
       setTitulo("");
       setDescripcion("");
       setClienteNombre("");
       setPrioridad("MEDIA");
       await cargarTickets();
-    } catch (e) {
+    } catch {
       setError("No se pudo crear el ticket.");
     } finally {
       setCargando(false);
@@ -109,6 +148,14 @@ export default function Home() {
         <span className="app-header-brand">
           <span>Rooster</span>Code · Help Desk
         </span>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
+          {emailUsuario && (
+            <span style={{ fontSize: 13, color: "var(--color-text-muted)" }}>{emailUsuario}</span>
+          )}
+          <button className="btn-secondary" onClick={cerrarSesion} style={{ padding: "5px 12px", fontSize: 13 }}>
+            Cerrar sesión
+          </button>
+        </div>
       </header>
 
       <main className="app-main">

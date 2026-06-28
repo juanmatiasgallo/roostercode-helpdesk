@@ -18,3 +18,5 @@ app:
   cors:
     # En EasyPanel se setea con la URL del frontend. Por defecto permite todo (solo para el skeleton).
     allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
+  jwt:
+    expiration-hours: ${JWT_EXPIRATION_HOURS:12}
