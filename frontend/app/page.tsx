@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import ComentariosTicket from "./components/ComentariosTicket";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -158,6 +159,14 @@ export default function Home() {
         <span className="app-header-brand">
           <span>Rooster</span>Code · Help Desk
         </span>
+        <nav style={{ display: "flex", gap: 4, marginLeft: 20 }}>
+          <span style={{ padding: "4px 10px", borderRadius: "var(--radius-sm)", fontSize: 13, color: "var(--color-primary)", fontWeight: 600 }}>
+            Tickets
+          </span>
+          <Link href="/proveedores" style={{ padding: "4px 10px", borderRadius: "var(--radius-sm)", fontSize: 13, color: "var(--color-text-muted)", textDecoration: "none" }}>
+            Proveedores
+          </Link>
+        </nav>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
           {emailUsuario && (
             <span style={{ fontSize: 13, color: "var(--color-text-muted)" }}>{emailUsuario}</span>
