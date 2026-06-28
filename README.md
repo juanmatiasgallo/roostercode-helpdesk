@@ -1,75 +1,80 @@
-# RoosterCode · Help Desk (Walking Skeleton v0.1)
+# RoosterCode — Help Desk
 
-Primer producto de RoosterCode. Esta versión es el "esqueleto que camina":
-lo mínimo de punta a punta para probar que todo el stack funciona y despliega.
+Sistema de gestión de tickets de soporte. Primer producto de **RoosterCode**, una
+plataforma modular. Construido con un enfoque de "producto primero": las piezas
+reutilizables se extraen de lo que se repite, no se diseñan por adelantado.
 
-Diseño completo: ver documento `007 - Diseño Técnico del Módulo Help Desk` en Obsidian.
+- **App:** https://apphelp.roostercode.tech
+- **API:** https://apihelp.roostercode.tech
 
-## Qué hace esta versión
+## Funcionalidades
 
-- Crear un ticket (título, descripción, cliente, prioridad).
-- Listar los tickets existentes.
+- Tickets: crear, listar y cambiar de estado (abierto → en progreso → resuelto →
+  cerrado, con reapertura).
+- Autenticación con login (JWT) y endpoints protegidos.
+- Comentarios en cada ticket, con autoría y visibilidad interna/pública.
+- Proveedores: alta y listado, con validación.
+- Clientes (personas): alta y listado.
+- Vínculo opcional entre ticket y cliente (buscar uno existente o crear uno nuevo
+  al crear el ticket).
 
-Nada más todavía: sin login, sin comentarios, sin historial. Eso viene después,
-sobre este esqueleto que ya respira.
+## Stack
+
+- **Backend:** Java 21, Spring Boot 3.3 (Web, Data JPA, Validation, Security),
+  Flyway, PostgreSQL, Maven.
+- **Frontend:** Next.js 14 (App Router), TypeScript.
+- **Infraestructura:** Docker, desplegado en EasyPanel sobre una VPS.
 
 ## Estructura
 
 ```
-roostercode-helpdesk/
-├── backend/    Spring Boot (Java 21) + PostgreSQL + Flyway
-└── frontend/   Next.js (TypeScript)
+backend/    API Spring Boot (paquete com.roostercode.helpdesk)
+frontend/   Aplicación Next.js
+docs/        Especificaciones de cada funcionalidad
+CLAUDE.md    Contexto del proyecto para asistencia con IA
 ```
 
-## Endpoints
+## Desarrollo local
 
-| Método | Ruta                | Qué hace          |
-|--------|---------------------|-------------------|
-| GET    | /api/v1/tickets     | Lista los tickets |
-| POST   | /api/v1/tickets     | Crea un ticket    |
+Requisitos: Java 21, Node.js, PostgreSQL.
 
-## Variables de entorno
+```bash
+# Backend
+cd backend
+mvn -DskipTests clean package
+java -jar target/app.jar        # puerto 8080
 
-### Backend (servicio de la API en EasyPanel)
+# Frontend
+cd frontend
+npm install
+npm run dev                     # puerto 3000
+```
 
-| Variable                   | Ejemplo                                          |
-|----------------------------|--------------------------------------------------|
-| SPRING_DATASOURCE_URL      | jdbc:postgresql://HOST_INTERNO:5432/helpdesk     |
-| SPRING_DATASOURCE_USERNAME | helpdesk                                         |
-| SPRING_DATASOURCE_PASSWORD | (la que defina EasyPanel al crear el Postgres)   |
-| CORS_ALLOWED_ORIGINS       | https://app.tudominio.com  (la URL del frontend) |
+### Variables de entorno
 
-> `HOST_INTERNO` es el nombre interno que EasyPanel le da al servicio Postgres.
-> Lo tomamos de la pantalla del servicio de base de datos al momento de configurar.
+Backend: `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`,
+`SPRING_DATASOURCE_PASSWORD`, `CORS_ALLOWED_ORIGINS`, `JWT_SECRET`
+(mínimo 32 caracteres), `ADMIN_EMAIL`, `ADMIN_PASSWORD`.
+Frontend: `NEXT_PUBLIC_API_URL`.
 
-### Frontend (servicio web en EasyPanel)
+Los secretos van en el entorno de despliegue, nunca en el repositorio.
 
-| Variable             | Ejemplo                        |
-|----------------------|--------------------------------|
-| NEXT_PUBLIC_API_URL  | https://api.tudominio.com      |
+## Base de datos
 
-> Importante: Next.js "hornea" esta variable en el build, así que en EasyPanel
-> debe estar seteada antes de desplegar el frontend.
+El esquema lo gestiona **Flyway**. Las migraciones están en
+`backend/src/main/resources/db/migration` y se aplican automáticamente al
+arrancar el backend. Para un cambio de esquema, se agrega una migración nueva con
+el siguiente número de versión; nunca se editan las ya aplicadas.
 
-## Despliegue en EasyPanel (resumen)
+## Despliegue
 
-1. Crear un proyecto (ej. `roostercode`).
-2. Agregar un servicio **Postgres** (base: `helpdesk`).
-3. Agregar un servicio **App** para el backend:
-   - Fuente: este repo de GitHub.
-   - Build: Dockerfile, ruta `backend/Dockerfile`.
-   - Variables: las del backend (arriba).
-4. Agregar un servicio **App** para el frontend:
-   - Fuente: el mismo repo.
-   - Build: Dockerfile, ruta `frontend/Dockerfile`.
-   - Variables: `NEXT_PUBLIC_API_URL`.
-5. Asignar dominios a backend y frontend (EasyPanel pone el HTTPS).
-6. Deploy.
+Push a la rama `main` dispara el redespliegue en EasyPanel. Cuando hay una
+migración nueva, se despliega primero el servicio `api` (que la aplica) y luego
+el `web`.
 
-Los pasos detallados, pantalla por pantalla, los hacemos juntos.
+## Estado
 
-## Criterios de aceptación
-
-- [ ] Puedo crear un ticket desde la web y, al recargar, aparece en la lista.
-- [ ] El dato persiste en Postgres (sobrevive a reiniciar el backend).
-- [ ] Backend y frontend accesibles por HTTPS en tu dominio.
+Proyecto en desarrollo activo. El diseño y el avance se documentan en un vault de
+Obsidian (diseño técnico, bitácora de cambios y tablero Kanban).
+EOF
+echo "README.md listo"
