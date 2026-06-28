@@ -6,37 +6,10 @@ import Link from "next/link";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-const DEPARTAMENTOS: [string, string][] = [
-  ["ARTIGAS", "Artigas"],
-  ["CANELONES", "Canelones"],
-  ["CERRO_LARGO", "Cerro Largo"],
-  ["COLONIA", "Colonia"],
-  ["DURAZNO", "Durazno"],
-  ["FLORES", "Flores"],
-  ["FLORIDA", "Florida"],
-  ["LAVALLEJA", "Lavalleja"],
-  ["MALDONADO", "Maldonado"],
-  ["MONTEVIDEO", "Montevideo"],
-  ["PAYSANDU", "Paysandú"],
-  ["RIO_NEGRO", "Río Negro"],
-  ["RIVERA", "Rivera"],
-  ["ROCHA", "Rocha"],
-  ["SALTO", "Salto"],
-  ["SAN_JOSE", "San José"],
-  ["SORIANO", "Soriano"],
-  ["TACUAREMBO", "Tacuarembó"],
-  ["TREINTA_Y_TRES", "Treinta y Tres"],
-];
-
-const DEPTO_LABEL = Object.fromEntries(DEPARTAMENTOS);
-
 type Cliente = {
   id: string;
-  empresa: string;
-  rut: string;
-  telefono: string;
-  direccion: string;
-  departamento: string;
+  nombreCompleto: string;
+  celular: string;
   email: string;
   createdAt: string;
 };
@@ -59,11 +32,8 @@ export default function Clientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [emailUsuario, setEmailUsuario] = useState<string | null>(null);
 
-  const [empresa, setEmpresa] = useState("");
-  const [rut, setRut] = useState("");
-  const [telefono, setTelefono] = useState("");
-  const [direccion, setDireccion] = useState("");
-  const [departamento, setDepartamento] = useState("");
+  const [nombreCompleto, setNombreCompleto] = useState("");
+  const [celular, setCelular] = useState("");
   const [email, setEmail] = useState("");
 
   const [erroresCampos, setErroresCampos] = useState<Record<string, string>>({});
@@ -106,14 +76,7 @@ export default function Clientes() {
       const res = await fetch(`${API}/api/v1/clientes`, {
         method: "POST",
         headers: jsonHeaders(),
-        body: JSON.stringify({
-          empresa,
-          rut,
-          telefono,
-          direccion,
-          departamento: departamento || null,
-          email,
-        }),
+        body: JSON.stringify({ nombreCompleto, celular, email }),
       });
       if (res.status === 401) { manejarNoAutorizado(); return; }
       if (res.status === 400) {
@@ -123,15 +86,12 @@ export default function Clientes() {
       }
       if (res.status === 409) {
         const body = await res.json();
-        setErrorGeneral(body.error ?? "Ya existe un cliente con esos datos");
+        setErrorGeneral(body.error ?? "Ya existe un cliente con ese email");
         return;
       }
       if (!res.ok) throw new Error();
-      setEmpresa("");
-      setRut("");
-      setTelefono("");
-      setDireccion("");
-      setDepartamento("");
+      setNombreCompleto("");
+      setCelular("");
       setEmail("");
       await cargarClientes();
     } catch {
@@ -189,48 +149,19 @@ export default function Clientes() {
 
           <input
             className="form-input"
-            placeholder="Empresa"
-            value={empresa}
-            onChange={(e) => setEmpresa(e.target.value)}
+            placeholder="Nombre completo"
+            value={nombreCompleto}
+            onChange={(e) => setNombreCompleto(e.target.value)}
           />
-          {erroresCampos.empresa && <p style={fieldError}>{erroresCampos.empresa}</p>}
+          {erroresCampos.nombreCompleto && <p style={fieldError}>{erroresCampos.nombreCompleto}</p>}
 
           <input
             className="form-input"
-            placeholder="RUT (12 dígitos)"
-            value={rut}
-            onChange={(e) => setRut(e.target.value)}
+            placeholder="Celular"
+            value={celular}
+            onChange={(e) => setCelular(e.target.value)}
           />
-          {erroresCampos.rut && <p style={fieldError}>{erroresCampos.rut}</p>}
-
-          <input
-            className="form-input"
-            placeholder="Teléfono"
-            value={telefono}
-            onChange={(e) => setTelefono(e.target.value)}
-          />
-          {erroresCampos.telefono && <p style={fieldError}>{erroresCampos.telefono}</p>}
-
-          <textarea
-            className="form-input"
-            style={{ height: 72, resize: "vertical" }}
-            placeholder="Dirección"
-            value={direccion}
-            onChange={(e) => setDireccion(e.target.value)}
-          />
-          {erroresCampos.direccion && <p style={fieldError}>{erroresCampos.direccion}</p>}
-
-          <select
-            className="form-input"
-            value={departamento}
-            onChange={(e) => setDepartamento(e.target.value)}
-          >
-            <option value="">Seleccioná un departamento</option>
-            {DEPARTAMENTOS.map(([val, label]) => (
-              <option key={val} value={val}>{label}</option>
-            ))}
-          </select>
-          {erroresCampos.departamento && <p style={fieldError}>{erroresCampos.departamento}</p>}
+          {erroresCampos.celular && <p style={fieldError}>{erroresCampos.celular}</p>}
 
           <input
             className="form-input"
@@ -256,19 +187,11 @@ export default function Clientes() {
           {clientes.map((c) => (
             <div key={c.id} className="ticket-card">
               <div className="ticket-header">
-                <span className="ticket-numero-titulo">{c.empresa}</span>
-                <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-                  {DEPTO_LABEL[c.departamento] ?? c.departamento}
-                </span>
+                <span className="ticket-numero-titulo">{c.nombreCompleto}</span>
+                <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>{c.email}</span>
               </div>
-              <p className="ticket-descripcion" style={{ marginBottom: 2 }}>
-                <strong>RUT:</strong> {c.rut}
-              </p>
-              <p className="ticket-descripcion" style={{ marginBottom: 2 }}>
-                <strong>Email:</strong> {c.email} · <strong>Tel:</strong> {c.telefono}
-              </p>
               <p className="ticket-descripcion" style={{ marginBottom: 0 }}>
-                {c.direccion}
+                <strong>Cel:</strong> {c.celular}
               </p>
             </div>
           ))}

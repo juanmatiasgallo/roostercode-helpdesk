@@ -1,6 +1,5 @@
 package com.roostercode.helpdesk.cliente;
 
-import com.roostercode.helpdesk.proveedor.Departamento;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -13,21 +12,11 @@ public class Cliente {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false, length = 200)
-    private String empresa;
-
-    @Column(nullable = false, length = 12)
-    private String rut;
+    @Column(name = "nombre_completo", nullable = false, length = 255)
+    private String nombreCompleto;
 
     @Column(nullable = false, length = 30)
-    private String telefono;
-
-    @Column(nullable = false, columnDefinition = "text")
-    private String direccion;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 50)
-    private Departamento departamento;
+    private String celular;
 
     @Column(nullable = false, length = 255)
     private String email;
@@ -37,22 +26,15 @@ public class Cliente {
 
     protected Cliente() {}
 
-    public Cliente(String empresa, String rut, String telefono, String direccion,
-                   Departamento departamento, String email) {
-        this.empresa = empresa;
-        this.rut = rut;
-        this.telefono = telefono;
-        this.direccion = direccion;
-        this.departamento = departamento;
+    public Cliente(String nombreCompleto, String celular, String email) {
+        this.nombreCompleto = nombreCompleto;
+        this.celular = celular;
         this.email = email;
     }
 
     public UUID getId() { return id; }
-    public String getEmpresa() { return empresa; }
-    public String getRut() { return rut; }
-    public String getTelefono() { return telefono; }
-    public String getDireccion() { return direccion; }
-    public Departamento getDepartamento() { return departamento; }
+    public String getNombreCompleto() { return nombreCompleto; }
+    public String getCelular() { return celular; }
     public String getEmail() { return email; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
 }

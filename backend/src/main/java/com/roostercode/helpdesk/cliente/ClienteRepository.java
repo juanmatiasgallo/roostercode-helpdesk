@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.UUID;
 
 public interface ClienteRepository extends JpaRepository<Cliente, UUID> {
-    List<Cliente> findAllByOrderByEmpresaAsc();
-    boolean existsByRut(String rut);
+    List<Cliente> findAllByOrderByNombreCompletoAsc();
     boolean existsByEmail(String email);
 }

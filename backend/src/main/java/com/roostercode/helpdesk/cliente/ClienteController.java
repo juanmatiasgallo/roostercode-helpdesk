@@ -20,18 +20,11 @@ public class ClienteController {
 
     @PostMapping
     public ResponseEntity<?> crear(@Valid @RequestBody CrearClienteRequest req) {
-        if (clienteRepository.existsByRut(req.rut())) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("error", "Ya existe un cliente con ese RUT"));
-        }
         if (clienteRepository.existsByEmail(req.email())) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "Ya existe un cliente con ese email"));
         }
-        Cliente nuevo = new Cliente(
-                req.empresa(), req.rut(), req.telefono(),
-                req.direccion(), req.departamento(), req.email()
-        );
+        Cliente nuevo = new Cliente(req.nombreCompleto(), req.celular(), req.email());
         Cliente guardado = clienteRepository.saveAndFlush(nuevo);
         Cliente completo = clienteRepository.findById(guardado.getId()).orElse(guardado);
         return ResponseEntity.status(HttpStatus.CREATED).body(ClienteResponse.from(completo));
@@ -39,7 +32,7 @@ public class ClienteController {
 
     @GetMapping
     public List<ClienteResponse> listar() {
-        return clienteRepository.findAllByOrderByEmpresaAsc()
+        return clienteRepository.findAllByOrderByNombreCompletoAsc()
                 .stream()
                 .map(ClienteResponse::from)
                 .toList();

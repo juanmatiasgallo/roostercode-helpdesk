@@ -1,29 +1,17 @@
 package com.roostercode.helpdesk.cliente;
 
-import com.roostercode.helpdesk.proveedor.Departamento;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
 public record CrearClienteRequest(
 
-    @NotBlank(message = "La empresa es obligatoria")
-    String empresa,
+    @NotBlank(message = "El nombre completo es obligatorio")
+    String nombreCompleto,
 
-    @NotBlank(message = "El RUT es obligatorio")
-    @Pattern(regexp = "\\d{12}", message = "El RUT debe tener exactamente 12 dígitos numéricos")
-    String rut,
-
-    @NotBlank(message = "El teléfono es obligatorio")
-    @Pattern(regexp = "\\+?\\d[\\d\\s\\-]{4,18}", message = "Formato de teléfono inválido (dígitos, +, espacios o guiones)")
-    String telefono,
-
-    @NotBlank(message = "La dirección es obligatoria")
-    String direccion,
-
-    @NotNull(message = "El departamento es obligatorio")
-    Departamento departamento,
+    @NotBlank(message = "El celular es obligatorio")
+    @Pattern(regexp = "\\+?\\d[\\d\\s\\-]{4,18}", message = "Formato de celular inválido (dígitos, +, espacios o guiones)")
+    String celular,
 
     @NotBlank(message = "El email es obligatorio")
     @Email(message = "Formato de email inválido")
