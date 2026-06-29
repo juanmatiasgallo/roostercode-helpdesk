@@ -1,7 +1,11 @@
 package com.roostercode.helpdesk.ticket;
 
+import com.roostercode.helpdesk.categoria.Categoria;
+import com.roostercode.helpdesk.etiqueta.Etiqueta;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -24,6 +28,18 @@ public class Ticket {
 
     @Column(name = "cliente_nombre")
     private String clienteNombre;
+
+    @ManyToOne
+    @JoinColumn(name = "categoria_id")
+    private Categoria categoria;
+
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+            name = "ticket_etiqueta",
+            joinColumns = @JoinColumn(name = "ticket_id"),
+            inverseJoinColumns = @JoinColumn(name = "etiqueta_id")
+    )
+    private Set<Etiqueta> etiquetas = new HashSet<>();
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -95,9 +111,18 @@ public class Ticket {
     public String getTitulo() { return titulo; }
     public String getDescripcion() { return descripcion; }
     public String getClienteNombre() { return clienteNombre; }
+    public Categoria getCategoria() { return categoria; }
+    public Set<Etiqueta> getEtiquetas() { return etiquetas; }
     public Prioridad getPrioridad() { return prioridad; }
     public EstadoTicket getEstado() { return estado; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public OffsetDateTime getResueltoEn() { return resueltoEn; }
     public OffsetDateTime getCerradoEn() { return cerradoEn; }
+
+    public void setTitulo(String titulo) { this.titulo = titulo; }
+    public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
+    public void setClienteNombre(String clienteNombre) { this.clienteNombre = clienteNombre; }
+    public void setPrioridad(Prioridad prioridad) { this.prioridad = prioridad; }
+    public void setCategoria(Categoria categoria) { this.categoria = categoria; }
+    public void setEtiquetas(Set<Etiqueta> etiquetas) { this.etiquetas = etiquetas; }
 }

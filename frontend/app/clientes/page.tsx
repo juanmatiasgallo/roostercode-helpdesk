@@ -168,6 +168,7 @@ export default function Clientes() {
           <Link href="/proveedores" style={navLink}>Proveedores</Link>
           <span style={navLinkActive}>Clientes</span>
           <Link href="/reportes" style={navLink}>Reportes</Link>
+          <Link href="/configuracion" style={navLink}>Configuración</Link>
         </nav>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
           {emailUsuario && (
@@ -232,7 +233,13 @@ export default function Clientes() {
           {clientes.map((c) => (
             <div key={c.id} className="ticket-card">
               <div className="ticket-header">
-                <span className="ticket-numero-titulo">{c.nombreCompleto}</span>
+                <Link
+                  href={`/clientes/${c.id}`}
+                  className="ticket-numero-titulo"
+                  style={{ textDecoration: "none", color: "inherit" }}
+                >
+                  {c.nombreCompleto}
+                </Link>
                 <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>{c.email}</span>
               </div>
               <p className="ticket-descripcion" style={{ marginBottom: 6 }}>

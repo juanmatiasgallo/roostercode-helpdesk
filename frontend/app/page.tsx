@@ -4,8 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ComentariosTicket from "./components/ComentariosTicket";
+import ClienteSelector from "./components/ClienteSelector";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
+type Categoria = { id: string; nombre: string; activo: boolean; };
+type Etiqueta  = { id: string; nombre: string; color: string; };
 
 type Ticket = {
   id: string;
@@ -13,6 +17,8 @@ type Ticket = {
   titulo: string;
   descripcion: string;
   clienteNombre: string | null;
+  categoria: Categoria | null;
+  etiquetas: Etiqueta[];
   prioridad: string;
   estado: "ABIERTO" | "EN_PROGRESO" | "RESUELTO" | "CERRADO";
   createdAt: string;
@@ -47,6 +53,10 @@ const LABEL_ACCION: Record<Accion, string> = {
 
 const PRIORIDADES = ["BAJA", "MEDIA", "ALTA", "URGENTE"];
 
+function prioridadClass(p: string) {
+  return `badge-prioridad prioridad-${p.toLowerCase()}`;
+}
+
 function estadoClass(estado: Ticket["estado"]) {
   return `badge-estado estado-${estado.toLowerCase().replace("_", "-")}`;
 }
@@ -80,6 +90,10 @@ export default function Home() {
   const [descripcion, setDescripcion] = useState("");
   const [clienteNombre, setClienteNombre] = useState("");
   const [prioridad, setPrioridad] = useState("MEDIA");
+  const [categoriaId, setCategoriaId] = useState("");
+  const [etiquetaIdsSeleccionadas, setEtiquetaIdsSeleccionadas] = useState<string[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorTransicion, setErrorTransicion] = useState<string | null>(null);
@@ -105,6 +119,20 @@ export default function Home() {
     if (res.ok) setEmailUsuario((await res.json()).email);
   }
 
+  async function cargarCategorias() {
+    try {
+      const res = await fetch(`${API}/api/v1/categorias`, { headers: authHeader() });
+      if (res.ok) setCategorias(await res.json());
+    } catch { /* no crítico */ }
+  }
+
+  async function cargarEtiquetas() {
+    try {
+      const res = await fetch(`${API}/api/v1/etiquetas`, { headers: authHeader() });
+      if (res.ok) setEtiquetas(await res.json());
+    } catch { /* no crítico */ }
+  }
+
   async function cargarTickets() {
     try {
       const res = await fetch(`${API}/api/v1/tickets?estado=ABIERTO`, { headers: authHeader() });
@@ -123,7 +151,7 @@ export default function Home() {
       if (res.status === 401) { manejarNoAutorizado(); return; }
       if (res.ok) setResumen(await res.json());
     } catch {
-      // resumen no es crítico, ignorar errores de red
+      // resumen no es crítico
     }
   }
 
@@ -132,6 +160,8 @@ export default function Home() {
     cargarUsuario();
     cargarTickets();
     cargarResumen();
+    cargarCategorias();
+    cargarEtiquetas();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function cerrarSesion() {
@@ -166,7 +196,11 @@ export default function Home() {
       const res = await fetch(`${API}/api/v1/tickets`, {
         method: "POST",
         headers: jsonHeaders(),
-        body: JSON.stringify({ titulo, descripcion, clienteNombre, prioridad }),
+        body: JSON.stringify({
+          titulo, descripcion, clienteNombre, prioridad,
+          categoriaId: categoriaId || null,
+          etiquetaIds: etiquetaIdsSeleccionadas,
+        }),
       });
       if (res.status === 401) { manejarNoAutorizado(); return; }
       if (!res.ok) throw new Error();
@@ -174,6 +208,8 @@ export default function Home() {
       setDescripcion("");
       setClienteNombre("");
       setPrioridad("MEDIA");
+      setCategoriaId("");
+      setEtiquetaIdsSeleccionadas([]);
       await Promise.all([cargarTickets(), cargarResumen()]);
     } catch {
       setError("No se pudo crear el ticket.");
@@ -190,6 +226,15 @@ export default function Home() {
     color: "var(--color-text-muted)",
   };
 
+  const kpiCardStyle: React.CSSProperties = {
+    background: "var(--color-surface)",
+    border: "1px solid var(--color-border)",
+    borderRadius: "var(--radius-md)",
+    padding: "12px 16px",
+    textAlign: "center",
+    boxShadow: "var(--shadow-sm)",
+  };
+
   return (
     <>
       <header className="app-header">
@@ -203,6 +248,7 @@ export default function Home() {
           <Link href="/proveedores" style={navLink}>Proveedores</Link>
           <Link href="/clientes" style={navLink}>Clientes</Link>
           <Link href="/reportes" style={navLink}>Reportes</Link>
+          <Link href="/configuracion" style={navLink}>Configuración</Link>
         </nav>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
           {emailUsuario && (
@@ -216,37 +262,36 @@ export default function Home() {
 
       <main className="app-main">
         {resumen && (
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
-            gap: 12,
-            marginBottom: 24,
-          }}>
-            {[
-              { label: "Abiertos", value: resumen.abiertos, color: "var(--color-primary)" },
-              { label: "En progreso", value: resumen.enProgreso, color: "#e67e22" },
-              { label: "Resueltos", value: resumen.resueltos, color: "#27ae60" },
-              { label: "Cerrados", value: resumen.cerrados, color: "#7f8c8d" },
-              { label: "Total", value: resumen.total, color: "var(--color-text-muted)" },
-              ...(resumen.tiempoPromedioResolucionHoras != null ? [{
-                label: "Prom. resolución",
-                value: formatearHoras(resumen.tiempoPromedioResolucionHoras),
-                color: "var(--color-text-muted)" as string,
-              }] : []),
-            ].map(({ label, value, color }) => (
-              <div key={label} style={{
-                background: "var(--color-bg-card)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius)",
-                padding: "12px 16px",
-                textAlign: "center",
-              }}>
-                <div style={{ fontSize: 26, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
-                <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  {label}
-                </div>
-              </div>
-            ))}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 12, marginBottom: 24 }}>
+            {(
+              [
+                { label: "Abiertos",    value: resumen.abiertos,    color: "var(--color-primary)", href: "/reportes?estado=ABIERTO" },
+                { label: "En progreso", value: resumen.enProgreso,  color: "#B45309",              href: "/reportes?estado=EN_PROGRESO" },
+                { label: "Resueltos",   value: resumen.resueltos,   color: "#16A34A",              href: "/reportes?estado=RESUELTO" },
+                { label: "Cerrados",    value: resumen.cerrados,    color: "#6B7280",              href: "/reportes?estado=CERRADO" },
+                { label: "Total",       value: resumen.total,       color: "var(--color-text-muted)", href: "/reportes" },
+              ] as Array<{ label: string; value: number | string; color: string; href?: string }>
+            )
+              .concat(
+                resumen.tiempoPromedioResolucionHoras != null
+                  ? [{ label: "Prom. resolución", value: formatearHoras(resumen.tiempoPromedioResolucionHoras), color: "var(--color-text-muted)" }]
+                  : []
+              )
+              .map(({ label, value, color, href }) => {
+                const inner = (
+                  <div style={{ ...kpiCardStyle, cursor: href ? "pointer" : "default" }}>
+                    <div style={{ fontSize: 26, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
+                    <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      {label}
+                    </div>
+                  </div>
+                );
+                return href ? (
+                  <Link key={label} href={href} style={{ textDecoration: "none" }}>{inner}</Link>
+                ) : (
+                  <div key={label}>{inner}</div>
+                );
+              })}
           </div>
         )}
 
@@ -265,21 +310,75 @@ export default function Home() {
             value={descripcion}
             onChange={(e) => setDescripcion(e.target.value)}
           />
-          <input
-            className="form-input"
-            placeholder="Cliente (opcional)"
+          <ClienteSelector
             value={clienteNombre}
-            onChange={(e) => setClienteNombre(e.target.value)}
+            onSelect={(c) => setClienteNombre(c ? c.nombreCompleto : "")}
+            token={getToken()}
+            onUnauthorized={manejarNoAutorizado}
           />
-          <select
-            className="form-input"
-            value={prioridad}
-            onChange={(e) => setPrioridad(e.target.value)}
-          >
-            {PRIORIDADES.map((p) => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </select>
+          <div style={{ marginTop: -4, marginBottom: 10 }}>
+            <a
+              href="/clientes"
+              target="_blank"
+              rel="noreferrer"
+              style={{ fontSize: 13, color: "var(--color-primary)", textDecoration: "none" }}
+            >
+              + Nuevo cliente
+            </a>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
+            <select
+              className="form-input"
+              style={{ marginBottom: 0, flex: 1 }}
+              value={prioridad}
+              onChange={(e) => setPrioridad(e.target.value)}
+            >
+              {PRIORIDADES.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+            <span className={prioridadClass(prioridad)}>{prioridad}</span>
+          </div>
+          {categorias.length > 0 && (
+            <select
+              className="form-input"
+              value={categoriaId}
+              onChange={(e) => setCategoriaId(e.target.value)}
+            >
+              <option value="">Sin categoría</option>
+              {categorias.filter((c) => c.activo).map((c) => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+          )}
+          {etiquetas.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+              {etiquetas.map((e) => {
+                const sel = etiquetaIdsSeleccionadas.includes(e.id);
+                return (
+                  <button
+                    key={e.id}
+                    type="button"
+                    onClick={() => setEtiquetaIdsSeleccionadas((prev) =>
+                      sel ? prev.filter((id) => id !== e.id) : [...prev, e.id]
+                    )}
+                    style={{
+                      background: sel ? e.color : "transparent",
+                      color: sel ? "#fff" : e.color,
+                      border: `2px solid ${e.color}`,
+                      borderRadius: 12,
+                      padding: "2px 10px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {e.nombre}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <button className="btn-primary" onClick={crearTicket} disabled={cargando}>
             {cargando ? "Creando..." : "Crear ticket"}
           </button>
@@ -296,15 +395,49 @@ export default function Home() {
           {tickets.map((t) => (
             <div key={t.id} className="ticket-card">
               <div className="ticket-header">
-                <span className="ticket-numero-titulo">#{t.numero} · {t.titulo}</span>
+                <Link
+                  href={`/tickets/${t.id}`}
+                  style={{ textDecoration: "none", color: "inherit" }}
+                >
+                  <span className="ticket-numero-titulo">#{t.numero} · {t.titulo}</span>
+                </Link>
                 <div className="ticket-badges">
                   <span className={estadoClass(t.estado)}>{t.estado}</span>
-                  <span className="badge-prioridad">{t.prioridad}</span>
+                  <span className={prioridadClass(t.prioridad)}>{t.prioridad}</span>
                 </div>
               </div>
               <p className="ticket-descripcion">{t.descripcion}</p>
               {t.clienteNombre && (
                 <span className="ticket-cliente">Cliente: {t.clienteNombre}</span>
+              )}
+              {(t.categoria || t.etiquetas.length > 0) && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6, marginBottom: 2 }}>
+                  {t.categoria && (
+                    <span style={{
+                      background: "var(--color-surface)",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "var(--radius-sm)",
+                      padding: "2px 8px",
+                      fontSize: 11,
+                      color: "var(--color-text-muted)",
+                      fontWeight: 600,
+                    }}>
+                      {t.categoria.nombre}
+                    </span>
+                  )}
+                  {t.etiquetas.map((e) => (
+                    <span key={e.id} style={{
+                      background: e.color,
+                      color: "#fff",
+                      borderRadius: 12,
+                      padding: "2px 8px",
+                      fontSize: 11,
+                      fontWeight: 600,
+                    }}>
+                      {e.nombre}
+                    </span>
+                  ))}
+                </div>
               )}
               <div className="ticket-acciones">
                 {ACCIONES_POR_ESTADO[t.estado].map((accion) => (
@@ -322,6 +455,9 @@ export default function Home() {
                 >
                   {comentariosAbiertos.has(t.id) ? "Ocultar comentarios" : "Comentarios"}
                 </button>
+                <Link href={`/tickets/${t.id}`} className="btn-secondary" style={{ textDecoration: "none" }}>
+                  Ver detalle
+                </Link>
               </div>
               {comentariosAbiertos.has(t.id) && (
                 <ComentariosTicket

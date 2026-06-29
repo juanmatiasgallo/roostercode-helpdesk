@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import ClienteSelector, { ClienteData } from "../components/ClienteSelector";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 type EstadoType = "ABIERTO" | "EN_PROGRESO" | "RESUELTO" | "CERRADO";
+
+type Categoria = { id: string; nombre: string };
+type Etiqueta  = { id: string; nombre: string; color: string };
 
 type Ticket = {
   id: string;
@@ -14,6 +18,8 @@ type Ticket = {
   titulo: string;
   descripcion: string;
   clienteNombre: string | null;
+  categoria: Categoria | null;
+  etiquetas: Etiqueta[];
   prioridad: string;
   estado: EstadoType;
   createdAt: string;
@@ -33,6 +39,10 @@ function getToken(): string | null {
 function authHeader(): Record<string, string> {
   const t = getToken();
   return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+function prioridadClass(p: string): string {
+  return `badge-prioridad prioridad-${p.toLowerCase()}`;
 }
 
 function estadoClass(estado: EstadoType): string {
@@ -57,14 +67,22 @@ function formatearHoras(h: number): string {
   return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
 }
 
-export default function Reportes() {
+function ReportesContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const estadoInicial = searchParams.get("estado") ?? "";
+
   const [emailUsuario, setEmailUsuario] = useState<string | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [filtroEstado, setFiltroEstado] = useState("");
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
+  const [filtroEstado, setFiltroEstado] = useState(estadoInicial);
   const [filtroQ, setFiltroQ] = useState("");
   const [filtroDesde, setFiltroDesde] = useState("");
   const [filtroHasta, setFiltroHasta] = useState("");
+  const [filtroCliente, setFiltroCliente] = useState<ClienteData | null>(null);
+  const [filtroCategoria, setFiltroCategoria] = useState("");
+  const [filtroEtiqueta, setFiltroEtiqueta] = useState("");
   const [buscando, setBuscando] = useState(false);
   const [buscado, setBuscado] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,9 +100,26 @@ export default function Reportes() {
     if (res.ok) setEmailUsuario((await res.json()).email);
   }
 
+  async function cargarCategorias() {
+    try {
+      const res = await fetch(`${API}/api/v1/categorias`, { headers: authHeader() });
+      if (res.ok) setCategorias(await res.json());
+    } catch { /* no crítico */ }
+  }
+
+  async function cargarEtiquetas() {
+    try {
+      const res = await fetch(`${API}/api/v1/etiquetas`, { headers: authHeader() });
+      if (res.ok) setEtiquetas(await res.json());
+    } catch { /* no crítico */ }
+  }
+
   useEffect(() => {
     if (!getToken()) { router.push("/login"); return; }
     cargarUsuario();
+    cargarCategorias();
+    cargarEtiquetas();
+    if (estadoInicial) buscar();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function cerrarSesion() {
@@ -101,6 +136,9 @@ export default function Reportes() {
       if (filtroQ.trim()) params.set("q", filtroQ.trim());
       if (filtroDesde) params.set("desde", filtroDesde);
       if (filtroHasta) params.set("hasta", filtroHasta);
+      if (filtroCliente) params.set("clienteNombre", filtroCliente.nombreCompleto);
+      if (filtroCategoria) params.set("categoriaId", filtroCategoria);
+      if (filtroEtiqueta) params.set("etiquetaId", filtroEtiqueta);
       const qs = params.toString();
       const res = await fetch(`${API}/api/v1/tickets${qs ? "?" + qs : ""}`, { headers: authHeader() });
       if (res.status === 401) { manejarNoAutorizado(); return; }
@@ -119,6 +157,9 @@ export default function Reportes() {
     setFiltroQ("");
     setFiltroDesde("");
     setFiltroHasta("");
+    setFiltroCliente(null);
+    setFiltroCategoria("");
+    setFiltroEtiqueta("");
     setTickets([]);
     setBuscado(false);
     setError(null);
@@ -144,11 +185,13 @@ export default function Reportes() {
   });
 
   function exportarCSV() {
-    const headers = ["Número", "Título", "Cliente", "Estado", "Prioridad", "Creado", "Resuelto", "Cerrado"];
+    const headers = ["Número", "Título", "Cliente", "Categoría", "Etiquetas", "Estado", "Prioridad", "Creado", "Resuelto", "Cerrado"];
     const rows = ticketsOrdenados.map((t) => [
       t.numero,
       `"${t.titulo.replace(/"/g, '""')}"`,
       `"${(t.clienteNombre ?? "").replace(/"/g, '""')}"`,
+      `"${(t.categoria?.nombre ?? "").replace(/"/g, '""')}"`,
+      `"${t.etiquetas.map((e) => e.nombre).join(", ").replace(/"/g, '""')}"`,
       t.estado,
       t.prioridad,
       formatearFecha(t.createdAt),
@@ -167,12 +210,11 @@ export default function Reportes() {
     URL.revokeObjectURL(url);
   }
 
-  // Métricas calculadas del resultado actual
   const contsPorEstado = {
-    ABIERTO: tickets.filter((t) => t.estado === "ABIERTO").length,
+    ABIERTO:     tickets.filter((t) => t.estado === "ABIERTO").length,
     EN_PROGRESO: tickets.filter((t) => t.estado === "EN_PROGRESO").length,
-    RESUELTO: tickets.filter((t) => t.estado === "RESUELTO").length,
-    CERRADO: tickets.filter((t) => t.estado === "CERRADO").length,
+    RESUELTO:    tickets.filter((t) => t.estado === "RESUELTO").length,
+    CERRADO:     tickets.filter((t) => t.estado === "CERRADO").length,
   };
   const conResolucion = tickets.filter((t) => t.resueltoEn);
   const promedioHoras =
@@ -186,9 +228,7 @@ export default function Reportes() {
     const n = t.clienteNombre ?? "(sin cliente)";
     porCliente[n] = (porCliente[n] ?? 0) + 1;
   }
-  const topClientes = Object.entries(porCliente)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
+  const topClientes = Object.entries(porCliente).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
   const navLink: React.CSSProperties = {
     padding: "4px 10px",
@@ -234,6 +274,7 @@ export default function Reportes() {
           <Link href="/proveedores" style={navLink}>Proveedores</Link>
           <Link href="/clientes" style={navLink}>Clientes</Link>
           <span style={navLinkActive}>Reportes</span>
+          <Link href="/configuracion" style={navLink}>Configuración</Link>
         </nav>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
           {emailUsuario && (
@@ -286,6 +327,49 @@ export default function Reportes() {
               onChange={(e) => setFiltroHasta(e.target.value)}
             />
           </div>
+          <div style={{ marginTop: 10 }}>
+            <ClienteSelector
+              value={filtroCliente ? filtroCliente.nombreCompleto : ""}
+              onSelect={setFiltroCliente}
+              token={getToken()}
+              onUnauthorized={manejarNoAutorizado}
+            />
+            {filtroCliente && (
+              <p style={{ margin: "-4px 0 8px", fontSize: 12, color: "var(--color-text-muted)" }}>
+                Filtrando por cliente: <strong>{filtroCliente.nombreCompleto}</strong>
+              </p>
+            )}
+          </div>
+          {(categorias.length > 0 || etiquetas.length > 0) && (
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+              {categorias.length > 0 && (
+                <select
+                  className="form-input"
+                  style={{ flex: "1 1 180px", minWidth: 160, marginBottom: 0 }}
+                  value={filtroCategoria}
+                  onChange={(e) => setFiltroCategoria(e.target.value)}
+                >
+                  <option value="">Todas las categorías</option>
+                  {categorias.map((c) => (
+                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                  ))}
+                </select>
+              )}
+              {etiquetas.length > 0 && (
+                <select
+                  className="form-input"
+                  style={{ flex: "1 1 180px", minWidth: 160, marginBottom: 0 }}
+                  value={filtroEtiqueta}
+                  onChange={(e) => setFiltroEtiqueta(e.target.value)}
+                >
+                  <option value="">Todas las etiquetas</option>
+                  {etiquetas.map((e) => (
+                    <option key={e.id} value={e.id}>{e.nombre}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
             <button className="btn-primary" onClick={buscar} disabled={buscando}>
               {buscando ? "Buscando…" : "Buscar"}
@@ -321,6 +405,7 @@ export default function Reportes() {
                         <th style={thStyle}>#</th>
                         <th style={thStyle}>Título</th>
                         <th style={thStyle}>Cliente</th>
+                        <th style={thStyle}>Categoría / Etiquetas</th>
                         <th style={thStyle}>Estado</th>
                         <th
                           style={{ ...thStyle, cursor: "pointer", userSelect: "none" }}
@@ -339,17 +424,53 @@ export default function Reportes() {
                     </thead>
                     <tbody>
                       {ticketsOrdenados.map((t) => (
-                        <tr key={t.id}>
+                        <tr
+                          key={t.id}
+                          style={{ cursor: "pointer" }}
+                          onClick={() => router.push(`/tickets/${t.id}`)}
+                        >
                           <td style={tdStyle}>{t.numero}</td>
-                          <td style={{ ...tdStyle, maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <td style={{ ...tdStyle, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {t.titulo}
                           </td>
                           <td style={tdStyle}>{t.clienteNombre ?? "—"}</td>
                           <td style={tdStyle}>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                              {t.categoria && (
+                                <span style={{
+                                  background: "var(--color-surface)",
+                                  border: "1px solid var(--color-border)",
+                                  borderRadius: "var(--radius-sm)",
+                                  padding: "1px 6px",
+                                  fontSize: 11,
+                                  color: "var(--color-text-muted)",
+                                  fontWeight: 600,
+                                  whiteSpace: "nowrap",
+                                }}>
+                                  {t.categoria.nombre}
+                                </span>
+                              )}
+                              {t.etiquetas.map((e) => (
+                                <span key={e.id} style={{
+                                  background: e.color,
+                                  color: "#fff",
+                                  borderRadius: 12,
+                                  padding: "1px 6px",
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  whiteSpace: "nowrap",
+                                }}>
+                                  {e.nombre}
+                                </span>
+                              ))}
+                              {!t.categoria && t.etiquetas.length === 0 && "—"}
+                            </div>
+                          </td>
+                          <td style={tdStyle}>
                             <span className={estadoClass(t.estado)}>{t.estado.replace("_", " ")}</span>
                           </td>
                           <td style={tdStyle}>
-                            <span className="badge-prioridad">{t.prioridad}</span>
+                            <span className={prioridadClass(t.prioridad)}>{t.prioridad}</span>
                           </td>
                           <td style={tdStyle}>{formatearFecha(t.createdAt)}</td>
                           <td style={tdStyle}>{t.resueltoEn ? formatearFecha(t.resueltoEn) : "—"}</td>
@@ -366,10 +487,10 @@ export default function Reportes() {
                 <h2 className="section-title">Métricas</h2>
                 <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 20 }}>
                   {[
-                    { label: "Abiertos", val: contsPorEstado.ABIERTO },
+                    { label: "Abiertos",    val: contsPorEstado.ABIERTO },
                     { label: "En progreso", val: contsPorEstado.EN_PROGRESO },
-                    { label: "Resueltos", val: contsPorEstado.RESUELTO },
-                    { label: "Cerrados", val: contsPorEstado.CERRADO },
+                    { label: "Resueltos",   val: contsPorEstado.RESUELTO },
+                    { label: "Cerrados",    val: contsPorEstado.CERRADO },
                   ].map(({ label, val }) => (
                     <div key={label} style={{ textAlign: "center", minWidth: 80 }}>
                       <div style={{ fontSize: 24, fontWeight: 700 }}>{val}</div>
@@ -412,5 +533,13 @@ export default function Reportes() {
         )}
       </main>
     </>
+  );
+}
+
+export default function Reportes() {
+  return (
+    <Suspense>
+      <ReportesContent />
+    </Suspense>
   );
 }

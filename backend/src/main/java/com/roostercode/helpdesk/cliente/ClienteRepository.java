@@ -6,6 +6,7 @@ import java.util.UUID;
 
 public interface ClienteRepository extends JpaRepository<Cliente, UUID> {
     List<Cliente> findAllByOrderByNombreCompletoAsc();
+    List<Cliente> findByNombreCompletoContainingIgnoreCaseOrderByNombreCompletoAsc(String nombreCompleto);
     boolean existsByEmail(String email);
     boolean existsByEmailAndIdNot(String email, UUID id);
 }

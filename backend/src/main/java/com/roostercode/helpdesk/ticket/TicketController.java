@@ -1,5 +1,8 @@
 package com.roostercode.helpdesk.ticket;
 
+import com.roostercode.helpdesk.categoria.CategoriaRepository;
+import com.roostercode.helpdesk.etiqueta.Etiqueta;
+import com.roostercode.helpdesk.etiqueta.EtiquetaRepository;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -8,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -19,9 +23,15 @@ import java.util.stream.Stream;
 public class TicketController {
 
     private final TicketRepository repository;
+    private final CategoriaRepository categoriaRepository;
+    private final EtiquetaRepository etiquetaRepository;
 
-    public TicketController(TicketRepository repository) {
+    public TicketController(TicketRepository repository,
+                            CategoriaRepository categoriaRepository,
+                            EtiquetaRepository etiquetaRepository) {
         this.repository = repository;
+        this.categoriaRepository = categoriaRepository;
+        this.etiquetaRepository = etiquetaRepository;
     }
 
     @GetMapping
@@ -29,7 +39,10 @@ public class TicketController {
             @RequestParam(required = false) EstadoTicket estado,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
-            @RequestParam(required = false) String q
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String clienteNombre,
+            @RequestParam(required = false) UUID categoriaId,
+            @RequestParam(required = false) UUID etiquetaId
     ) {
         Stream<Ticket> stream = repository.findAllByOrderByCreatedAtDesc().stream();
         if (estado != null) stream = stream.filter(t -> t.getEstado() == estado);
@@ -39,6 +52,19 @@ public class TicketController {
             String ql = q.trim().toLowerCase();
             stream = stream.filter(t -> t.getTitulo().toLowerCase().contains(ql)
                     || t.getNumero().toString().contains(q.trim()));
+        }
+        if (clienteNombre != null && !clienteNombre.isBlank()) {
+            String cnl = clienteNombre.trim().toLowerCase();
+            stream = stream.filter(t -> t.getClienteNombre() != null
+                    && t.getClienteNombre().toLowerCase().contains(cnl));
+        }
+        if (categoriaId != null) {
+            stream = stream.filter(t -> t.getCategoria() != null
+                    && categoriaId.equals(t.getCategoria().getId()));
+        }
+        if (etiquetaId != null) {
+            stream = stream.filter(t -> t.getEtiquetas().stream()
+                    .anyMatch(e -> etiquetaId.equals(e.getId())));
         }
         return stream.collect(Collectors.toList());
     }
@@ -59,10 +85,43 @@ public class TicketController {
         return new TicketResumenResponse(abiertos, enProgreso, resueltos, cerrados, total, promedio);
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<Ticket> obtener(@PathVariable UUID id) {
+        return repository.findById(id)
+                .map(ResponseEntity::ok)
+                .orElseThrow(() -> new TicketNoEncontradoException(id));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> editar(@PathVariable UUID id, @Valid @RequestBody CrearTicketRequest req) {
+        Ticket ticket = repository.findById(id)
+                .orElseThrow(() -> new TicketNoEncontradoException(id));
+        ticket.setTitulo(req.titulo());
+        ticket.setDescripcion(req.descripcion());
+        ticket.setClienteNombre(req.clienteNombre());
+        ticket.setPrioridad(req.prioridad() != null ? req.prioridad() : ticket.getPrioridad());
+        if (req.categoriaId() != null) {
+            categoriaRepository.findById(req.categoriaId()).ifPresent(ticket::setCategoria);
+        } else {
+            ticket.setCategoria(null);
+        }
+        List<Etiqueta> etqs = (req.etiquetaIds() != null && !req.etiquetaIds().isEmpty())
+                ? etiquetaRepository.findAllById(req.etiquetaIds())
+                : List.of();
+        ticket.setEtiquetas(new HashSet<>(etqs));
+        return ResponseEntity.ok(repository.save(ticket));
+    }
+
     @PostMapping
     public ResponseEntity<Ticket> crear(@Valid @RequestBody CrearTicketRequest req) {
         Prioridad prioridad = (req.prioridad() != null) ? req.prioridad() : Prioridad.MEDIA;
         Ticket nuevo = new Ticket(req.titulo(), req.descripcion(), req.clienteNombre(), prioridad);
+        if (req.categoriaId() != null) {
+            categoriaRepository.findById(req.categoriaId()).ifPresent(nuevo::setCategoria);
+        }
+        if (req.etiquetaIds() != null && !req.etiquetaIds().isEmpty()) {
+            nuevo.setEtiquetas(new HashSet<>(etiquetaRepository.findAllById(req.etiquetaIds())));
+        }
         Ticket guardado = repository.saveAndFlush(nuevo);
         // Volvemos a leerlo para devolver "numero" y "createdAt", que los genera la base.
         Ticket completo = repository.findById(guardado.getId()).orElse(guardado);

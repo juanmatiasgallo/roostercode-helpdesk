@@ -32,11 +32,18 @@ public class ClienteController {
     }
 
     @GetMapping
-    public List<ClienteResponse> listar() {
-        return clienteRepository.findAllByOrderByNombreCompletoAsc()
-                .stream()
-                .map(ClienteResponse::from)
-                .toList();
+    public List<ClienteResponse> listar(@RequestParam(required = false) String q) {
+        List<Cliente> clientes = (q != null && !q.isBlank())
+                ? clienteRepository.findByNombreCompletoContainingIgnoreCaseOrderByNombreCompletoAsc(q.trim())
+                : clienteRepository.findAllByOrderByNombreCompletoAsc();
+        return clientes.stream().map(ClienteResponse::from).toList();
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ClienteResponse> obtener(@PathVariable UUID id) {
+        return clienteRepository.findById(id)
+                .map(c -> ResponseEntity.ok(ClienteResponse.from(c)))
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PutMapping("/{id}")

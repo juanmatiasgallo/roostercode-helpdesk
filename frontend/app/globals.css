@@ -152,11 +152,16 @@ body {
   border-radius: var(--radius-sm);
   padding: 3px 8px;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   border: 1px solid var(--color-border);
   color: var(--color-text-muted);
   background: transparent;
 }
+
+.prioridad-baja    { background: #F0FDF4; color: #16A34A; border-color: #BBF7D0; }
+.prioridad-media   { background: #FFFBEB; color: #B45309; border-color: #FDE68A; }
+.prioridad-alta    { background: #FFF7ED; color: #C2410C; border-color: #FDBA74; }
+.prioridad-urgente { background: #FEF2F2; color: #B91C1C; border-color: #FECACA; }
 
 /* ── Buttons ─────────────────────────────────────────── */
 .btn-primary {
