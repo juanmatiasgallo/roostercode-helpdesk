@@ -59,6 +59,7 @@ export default function Proveedores() {
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [emailUsuario, setEmailUsuario] = useState<string | null>(null);
 
+  const [editandoId, setEditandoId] = useState<string | null>(null);
   const [empresa, setEmpresa] = useState("");
   const [rut, setRut] = useState("");
   const [telefono, setTelefono] = useState("");
@@ -98,13 +99,42 @@ export default function Proveedores() {
     router.push("/login");
   }
 
-  async function crearProveedor() {
+  function iniciarEdicion(p: Proveedor) {
+    setEditandoId(p.id);
+    setEmpresa(p.empresa);
+    setRut(p.rut);
+    setTelefono(p.telefono);
+    setDireccion(p.direccion);
+    setDepartamento(p.departamento);
+    setEmail(p.email);
+    setErroresCampos({});
+    setErrorGeneral(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelarEdicion() {
+    setEditandoId(null);
+    setEmpresa("");
+    setRut("");
+    setTelefono("");
+    setDireccion("");
+    setDepartamento("");
+    setEmail("");
+    setErroresCampos({});
+    setErrorGeneral(null);
+  }
+
+  async function guardarProveedor() {
     setCargando(true);
     setErroresCampos({});
     setErrorGeneral(null);
     try {
-      const res = await fetch(`${API}/api/v1/proveedores`, {
-        method: "POST",
+      const url = editandoId
+        ? `${API}/api/v1/proveedores/${editandoId}`
+        : `${API}/api/v1/proveedores`;
+      const method = editandoId ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
         headers: jsonHeaders(),
         body: JSON.stringify({
           empresa,
@@ -127,6 +157,7 @@ export default function Proveedores() {
         return;
       }
       if (!res.ok) throw new Error();
+      setEditandoId(null);
       setEmpresa("");
       setRut("");
       setTelefono("");
@@ -139,6 +170,16 @@ export default function Proveedores() {
     } finally {
       setCargando(false);
     }
+  }
+
+  async function eliminarProveedor(p: Proveedor) {
+    if (!window.confirm(`¿Eliminar a ${p.empresa}?`)) return;
+    const res = await fetch(`${API}/api/v1/proveedores/${p.id}`, {
+      method: "DELETE",
+      headers: authHeader(),
+    });
+    if (res.status === 401) { manejarNoAutorizado(); return; }
+    if (res.ok) await cargarProveedores();
   }
 
   const navLink: React.CSSProperties = {
@@ -172,6 +213,7 @@ export default function Proveedores() {
           <Link href="/" style={navLink}>Tickets</Link>
           <span style={navLinkActive}>Proveedores</span>
           <Link href="/clientes" style={navLink}>Clientes</Link>
+          <Link href="/reportes" style={navLink}>Reportes</Link>
         </nav>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
           {emailUsuario && (
@@ -185,7 +227,9 @@ export default function Proveedores() {
 
       <main className="app-main">
         <section className="section-card">
-          <h2 className="section-title">Nuevo proveedor</h2>
+          <h2 className="section-title">
+            {editandoId ? "Editar proveedor" : "Nuevo proveedor"}
+          </h2>
 
           <input
             className="form-input"
@@ -243,9 +287,16 @@ export default function Proveedores() {
 
           {errorGeneral && <p className="error-msg">{errorGeneral}</p>}
 
-          <button className="btn-primary" onClick={crearProveedor} disabled={cargando}>
-            {cargando ? "Guardando..." : "Agregar proveedor"}
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn-primary" onClick={guardarProveedor} disabled={cargando}>
+              {cargando ? "Guardando..." : editandoId ? "Guardar cambios" : "Agregar proveedor"}
+            </button>
+            {editandoId && (
+              <button className="btn-secondary" onClick={cancelarEdicion} disabled={cargando}>
+                Cancelar
+              </button>
+            )}
+          </div>
         </section>
 
         <section style={{ marginTop: 24 }}>
@@ -267,9 +318,21 @@ export default function Proveedores() {
               <p className="ticket-descripcion" style={{ marginBottom: 2 }}>
                 <strong>Email:</strong> {p.email} · <strong>Tel:</strong> {p.telefono}
               </p>
-              <p className="ticket-descripcion" style={{ marginBottom: 0 }}>
+              <p className="ticket-descripcion" style={{ marginBottom: 6 }}>
                 {p.direccion}
               </p>
+              <div className="ticket-acciones">
+                <button className="btn-secondary" onClick={() => iniciarEdicion(p)}>
+                  Editar
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={() => eliminarProveedor(p)}
+                  style={{ color: "var(--color-primary)" }}
+                >
+                  Eliminar
+                </button>
+              </div>
             </div>
           ))}
         </section>

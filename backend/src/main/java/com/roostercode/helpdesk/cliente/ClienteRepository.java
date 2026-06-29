@@ -7,4 +7,5 @@ import java.util.UUID;
 public interface ClienteRepository extends JpaRepository<Cliente, UUID> {
     List<Cliente> findAllByOrderByNombreCompletoAsc();
     boolean existsByEmail(String email);
+    boolean existsByEmailAndIdNot(String email, UUID id);
 }

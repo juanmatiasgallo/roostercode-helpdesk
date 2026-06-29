@@ -54,4 +54,11 @@ public class Proveedor {
     public Departamento getDepartamento() { return departamento; }
     public String getEmail() { return email; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
+
+    public void setEmpresa(String empresa) { this.empresa = empresa; }
+    public void setRut(String rut) { this.rut = rut; }
+    public void setTelefono(String telefono) { this.telefono = telefono; }
+    public void setDireccion(String direccion) { this.direccion = direccion; }
+    public void setDepartamento(Departamento departamento) { this.departamento = departamento; }
+    public void setEmail(String email) { this.email = email; }
 }

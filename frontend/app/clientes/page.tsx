@@ -32,6 +32,7 @@ export default function Clientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [emailUsuario, setEmailUsuario] = useState<string | null>(null);
 
+  const [editandoId, setEditandoId] = useState<string | null>(null);
   const [nombreCompleto, setNombreCompleto] = useState("");
   const [celular, setCelular] = useState("");
   const [email, setEmail] = useState("");
@@ -68,13 +69,36 @@ export default function Clientes() {
     router.push("/login");
   }
 
-  async function crearCliente() {
+  function iniciarEdicion(c: Cliente) {
+    setEditandoId(c.id);
+    setNombreCompleto(c.nombreCompleto);
+    setCelular(c.celular);
+    setEmail(c.email);
+    setErroresCampos({});
+    setErrorGeneral(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelarEdicion() {
+    setEditandoId(null);
+    setNombreCompleto("");
+    setCelular("");
+    setEmail("");
+    setErroresCampos({});
+    setErrorGeneral(null);
+  }
+
+  async function guardarCliente() {
     setCargando(true);
     setErroresCampos({});
     setErrorGeneral(null);
     try {
-      const res = await fetch(`${API}/api/v1/clientes`, {
-        method: "POST",
+      const url = editandoId
+        ? `${API}/api/v1/clientes/${editandoId}`
+        : `${API}/api/v1/clientes`;
+      const method = editandoId ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
         headers: jsonHeaders(),
         body: JSON.stringify({ nombreCompleto, celular, email }),
       });
@@ -90,6 +114,7 @@ export default function Clientes() {
         return;
       }
       if (!res.ok) throw new Error();
+      setEditandoId(null);
       setNombreCompleto("");
       setCelular("");
       setEmail("");
@@ -99,6 +124,16 @@ export default function Clientes() {
     } finally {
       setCargando(false);
     }
+  }
+
+  async function eliminarCliente(c: Cliente) {
+    if (!window.confirm(`¿Eliminar a ${c.nombreCompleto}?`)) return;
+    const res = await fetch(`${API}/api/v1/clientes/${c.id}`, {
+      method: "DELETE",
+      headers: authHeader(),
+    });
+    if (res.status === 401) { manejarNoAutorizado(); return; }
+    if (res.ok) await cargarClientes();
   }
 
   const navLink: React.CSSProperties = {
@@ -132,6 +167,7 @@ export default function Clientes() {
           <Link href="/" style={navLink}>Tickets</Link>
           <Link href="/proveedores" style={navLink}>Proveedores</Link>
           <span style={navLinkActive}>Clientes</span>
+          <Link href="/reportes" style={navLink}>Reportes</Link>
         </nav>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
           {emailUsuario && (
@@ -145,7 +181,9 @@ export default function Clientes() {
 
       <main className="app-main">
         <section className="section-card">
-          <h2 className="section-title">Nuevo cliente</h2>
+          <h2 className="section-title">
+            {editandoId ? "Editar cliente" : "Nuevo cliente"}
+          </h2>
 
           <input
             className="form-input"
@@ -174,9 +212,16 @@ export default function Clientes() {
 
           {errorGeneral && <p className="error-msg">{errorGeneral}</p>}
 
-          <button className="btn-primary" onClick={crearCliente} disabled={cargando}>
-            {cargando ? "Guardando..." : "Agregar cliente"}
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn-primary" onClick={guardarCliente} disabled={cargando}>
+              {cargando ? "Guardando..." : editandoId ? "Guardar cambios" : "Agregar cliente"}
+            </button>
+            {editandoId && (
+              <button className="btn-secondary" onClick={cancelarEdicion} disabled={cargando}>
+                Cancelar
+              </button>
+            )}
+          </div>
         </section>
 
         <section style={{ marginTop: 24 }}>
@@ -190,9 +235,21 @@ export default function Clientes() {
                 <span className="ticket-numero-titulo">{c.nombreCompleto}</span>
                 <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>{c.email}</span>
               </div>
-              <p className="ticket-descripcion" style={{ marginBottom: 0 }}>
+              <p className="ticket-descripcion" style={{ marginBottom: 6 }}>
                 <strong>Cel:</strong> {c.celular}
               </p>
+              <div className="ticket-acciones">
+                <button className="btn-secondary" onClick={() => iniciarEdicion(c)}>
+                  Editar
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={() => eliminarCliente(c)}
+                  style={{ color: "var(--color-primary)" }}
+                >
+                  Eliminar
+                </button>
+              </div>
             </div>
           ))}
         </section>

@@ -37,4 +37,8 @@ public class Cliente {
     public String getCelular() { return celular; }
     public String getEmail() { return email; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
+
+    public void setNombreCompleto(String nombreCompleto) { this.nombreCompleto = nombreCompleto; }
+    public void setCelular(String celular) { this.celular = celular; }
+    public void setEmail(String email) { this.email = email; }
 }

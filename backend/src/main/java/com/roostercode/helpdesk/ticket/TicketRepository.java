@@ -6,4 +6,6 @@ import java.util.UUID;
 
 public interface TicketRepository extends JpaRepository<Ticket, UUID> {
     List<Ticket> findAllByOrderByCreatedAtDesc();
+    long countByEstado(EstadoTicket estado);
+    List<Ticket> findByResueltoEnIsNotNull();
 }

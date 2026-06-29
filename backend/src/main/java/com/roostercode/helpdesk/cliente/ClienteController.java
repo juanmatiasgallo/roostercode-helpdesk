@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/clientes")
@@ -36,5 +37,30 @@ public class ClienteController {
                 .stream()
                 .map(ClienteResponse::from)
                 .toList();
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> editar(@PathVariable UUID id, @Valid @RequestBody CrearClienteRequest req) {
+        Cliente cliente = clienteRepository.findById(id).orElse(null);
+        if (cliente == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (clienteRepository.existsByEmailAndIdNot(req.email(), id)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "Ya existe un cliente con ese email"));
+        }
+        cliente.setNombreCompleto(req.nombreCompleto());
+        cliente.setCelular(req.celular());
+        cliente.setEmail(req.email());
+        return ResponseEntity.ok(ClienteResponse.from(clienteRepository.save(cliente)));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> eliminar(@PathVariable UUID id) {
+        if (!clienteRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        clienteRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 }

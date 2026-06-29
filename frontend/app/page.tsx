@@ -20,6 +20,15 @@ type Ticket = {
   cerradoEn: string | null;
 };
 
+type Resumen = {
+  abiertos: number;
+  enProgreso: number;
+  resueltos: number;
+  cerrados: number;
+  total: number;
+  tiempoPromedioResolucionHoras: number | null;
+};
+
 type Accion = "iniciar" | "resolver" | "cerrar" | "reabrir";
 
 const ACCIONES_POR_ESTADO: Record<Ticket["estado"], Accion[]> = {
@@ -55,9 +64,18 @@ function jsonHeaders(): Record<string, string> {
   return { "Content-Type": "application/json", ...authHeader() };
 }
 
+function formatearHoras(h: number): string {
+  if (h < 1 / 60) return "< 1m";
+  if (h < 1) return `${Math.round(h * 60)}m`;
+  const hrs = Math.floor(h);
+  const mins = Math.round((h - hrs) * 60);
+  return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+}
+
 export default function Home() {
   const router = useRouter();
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [resumen, setResumen] = useState<Resumen | null>(null);
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [clienteNombre, setClienteNombre] = useState("");
@@ -89,7 +107,7 @@ export default function Home() {
 
   async function cargarTickets() {
     try {
-      const res = await fetch(`${API}/api/v1/tickets`, { headers: authHeader() });
+      const res = await fetch(`${API}/api/v1/tickets?estado=ABIERTO`, { headers: authHeader() });
       if (res.status === 401) { manejarNoAutorizado(); return; }
       if (!res.ok) throw new Error();
       setTickets(await res.json());
@@ -99,10 +117,21 @@ export default function Home() {
     }
   }
 
+  async function cargarResumen() {
+    try {
+      const res = await fetch(`${API}/api/v1/tickets/resumen`, { headers: authHeader() });
+      if (res.status === 401) { manejarNoAutorizado(); return; }
+      if (res.ok) setResumen(await res.json());
+    } catch {
+      // resumen no es crítico, ignorar errores de red
+    }
+  }
+
   useEffect(() => {
     if (!getToken()) { router.push("/login"); return; }
     cargarUsuario();
     cargarTickets();
+    cargarResumen();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function cerrarSesion() {
@@ -124,7 +153,7 @@ export default function Home() {
         return;
       }
       if (!res.ok) throw new Error();
-      await cargarTickets();
+      await Promise.all([cargarTickets(), cargarResumen()]);
     } catch {
       setErrorTransicion("No se pudo conectar con el backend.");
     }
@@ -145,13 +174,21 @@ export default function Home() {
       setDescripcion("");
       setClienteNombre("");
       setPrioridad("MEDIA");
-      await cargarTickets();
+      await Promise.all([cargarTickets(), cargarResumen()]);
     } catch {
       setError("No se pudo crear el ticket.");
     } finally {
       setCargando(false);
     }
   }
+
+  const navLink: React.CSSProperties = {
+    padding: "4px 10px",
+    borderRadius: "var(--radius-sm)",
+    fontSize: 13,
+    textDecoration: "none",
+    color: "var(--color-text-muted)",
+  };
 
   return (
     <>
@@ -163,12 +200,9 @@ export default function Home() {
           <span style={{ padding: "4px 10px", borderRadius: "var(--radius-sm)", fontSize: 13, color: "var(--color-primary)", fontWeight: 600 }}>
             Tickets
           </span>
-          <Link href="/proveedores" style={{ padding: "4px 10px", borderRadius: "var(--radius-sm)", fontSize: 13, color: "var(--color-text-muted)", textDecoration: "none" }}>
-            Proveedores
-          </Link>
-          <Link href="/clientes" style={{ padding: "4px 10px", borderRadius: "var(--radius-sm)", fontSize: 13, color: "var(--color-text-muted)", textDecoration: "none" }}>
-            Clientes
-          </Link>
+          <Link href="/proveedores" style={navLink}>Proveedores</Link>
+          <Link href="/clientes" style={navLink}>Clientes</Link>
+          <Link href="/reportes" style={navLink}>Reportes</Link>
         </nav>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
           {emailUsuario && (
@@ -181,6 +215,41 @@ export default function Home() {
       </header>
 
       <main className="app-main">
+        {resumen && (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
+            gap: 12,
+            marginBottom: 24,
+          }}>
+            {[
+              { label: "Abiertos", value: resumen.abiertos, color: "var(--color-primary)" },
+              { label: "En progreso", value: resumen.enProgreso, color: "#e67e22" },
+              { label: "Resueltos", value: resumen.resueltos, color: "#27ae60" },
+              { label: "Cerrados", value: resumen.cerrados, color: "#7f8c8d" },
+              { label: "Total", value: resumen.total, color: "var(--color-text-muted)" },
+              ...(resumen.tiempoPromedioResolucionHoras != null ? [{
+                label: "Prom. resolución",
+                value: formatearHoras(resumen.tiempoPromedioResolucionHoras),
+                color: "var(--color-text-muted)" as string,
+              }] : []),
+            ].map(({ label, value, color }) => (
+              <div key={label} style={{
+                background: "var(--color-bg-card)",
+                border: "1px solid var(--color-border)",
+                borderRadius: "var(--radius)",
+                padding: "12px 16px",
+                textAlign: "center",
+              }}>
+                <div style={{ fontSize: 26, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
+                <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  {label}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <section className="section-card">
           <h2 className="section-title">Nuevo ticket</h2>
           <input
@@ -220,9 +289,9 @@ export default function Home() {
         {errorTransicion && <p className="error-msg">{errorTransicion}</p>}
 
         <section style={{ marginTop: 24 }}>
-          <h2 className="section-heading">Tickets ({tickets.length})</h2>
+          <h2 className="section-heading">Tickets abiertos ({tickets.length})</h2>
           {tickets.length === 0 && (
-            <p className="empty-msg">Todavía no hay tickets. Creá el primero arriba.</p>
+            <p className="empty-msg">No hay tickets abiertos en este momento.</p>
           )}
           {tickets.map((t) => (
             <div key={t.id} className="ticket-card">
