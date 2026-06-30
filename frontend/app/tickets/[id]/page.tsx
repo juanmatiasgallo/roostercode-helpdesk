@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import ComentariosTicket from "../../components/ComentariosTicket";
+import ClienteSelector from "../../components/ClienteSelector";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -11,6 +12,7 @@ type EstadoType = "ABIERTO" | "EN_PROGRESO" | "RESUELTO" | "CERRADO";
 type Accion = "iniciar" | "resolver" | "cerrar" | "reabrir";
 type Categoria = { id: string; nombre: string; activo: boolean };
 type Etiqueta  = { id: string; nombre: string; color: string };
+type ClienteInfo = { id: string; nombreCompleto: string };
 
 type Ticket = {
   id: string;
@@ -18,6 +20,7 @@ type Ticket = {
   titulo: string;
   descripcion: string;
   clienteNombre: string | null;
+  cliente: ClienteInfo | null;
   categoria: Categoria | null;
   etiquetas: Etiqueta[];
   prioridad: string;
@@ -89,6 +92,7 @@ export default function DetalleTicket() {
   const [editTitulo, setEditTitulo] = useState("");
   const [editDescripcion, setEditDescripcion] = useState("");
   const [editPrioridad, setEditPrioridad] = useState("MEDIA");
+  const [editClienteId, setEditClienteId] = useState("");
   const [editClienteNombre, setEditClienteNombre] = useState("");
   const [editCategoriaId, setEditCategoriaId] = useState("");
   const [editEtiquetaIds, setEditEtiquetaIds] = useState<string[]>([]);
@@ -156,7 +160,8 @@ export default function DetalleTicket() {
     setEditTitulo(ticket.titulo);
     setEditDescripcion(ticket.descripcion);
     setEditPrioridad(ticket.prioridad);
-    setEditClienteNombre(ticket.clienteNombre ?? "");
+    setEditClienteId(ticket.cliente?.id ?? "");
+    setEditClienteNombre(ticket.cliente?.nombreCompleto ?? ticket.clienteNombre ?? "");
     setEditCategoriaId(ticket.categoria?.id ?? "");
     setEditEtiquetaIds(ticket.etiquetas.map((e) => e.id));
     setErroresCampos({});
@@ -182,7 +187,7 @@ export default function DetalleTicket() {
           titulo: editTitulo,
           descripcion: editDescripcion,
           prioridad: editPrioridad,
-          clienteNombre: editClienteNombre || null,
+          clienteId: editClienteId || null,
           categoriaId: editCategoriaId || null,
           etiquetaIds: editEtiquetaIds,
         }),
@@ -293,9 +298,9 @@ export default function DetalleTicket() {
                   <p style={{ margin: "0 0 10px", fontSize: 14, lineHeight: 1.6, color: "#444" }}>
                     {ticket.descripcion}
                   </p>
-                  {ticket.clienteNombre && (
+                  {(ticket.cliente || ticket.clienteNombre) && (
                     <p style={{ margin: "0 0 10px", fontSize: 13, color: "var(--color-text-muted)" }}>
-                      Cliente: {ticket.clienteNombre}
+                      Cliente: {ticket.cliente?.nombreCompleto ?? ticket.clienteNombre}
                     </p>
                   )}
                   {(ticket.categoria || ticket.etiquetas.length > 0) && (
@@ -369,11 +374,14 @@ export default function DetalleTicket() {
                     <span className={prioridadClass(editPrioridad)}>{editPrioridad}</span>
                   </div>
 
-                  <input
-                    className="form-input"
-                    placeholder="Cliente (opcional)"
+                  <ClienteSelector
                     value={editClienteNombre}
-                    onChange={(e) => setEditClienteNombre(e.target.value)}
+                    onSelect={(c) => {
+                      setEditClienteId(c ? c.id : "");
+                      setEditClienteNombre(c ? c.nombreCompleto : "");
+                    }}
+                    token={getToken()}
+                    onUnauthorized={manejarNoAutorizado}
                   />
 
                   {categorias.length > 0 && (

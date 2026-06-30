@@ -11,12 +11,15 @@ const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 type Categoria = { id: string; nombre: string; activo: boolean; };
 type Etiqueta  = { id: string; nombre: string; color: string; };
 
+type ClienteInfo = { id: string; nombreCompleto: string };
+
 type Ticket = {
   id: string;
   numero: number;
   titulo: string;
   descripcion: string;
   clienteNombre: string | null;
+  cliente: ClienteInfo | null;
   categoria: Categoria | null;
   etiquetas: Etiqueta[];
   prioridad: string;
@@ -89,6 +92,7 @@ export default function Home() {
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [clienteNombre, setClienteNombre] = useState("");
+  const [clienteId, setClienteId] = useState("");
   const [prioridad, setPrioridad] = useState("MEDIA");
   const [categoriaId, setCategoriaId] = useState("");
   const [etiquetaIdsSeleccionadas, setEtiquetaIdsSeleccionadas] = useState<string[]>([]);
@@ -198,6 +202,7 @@ export default function Home() {
         headers: jsonHeaders(),
         body: JSON.stringify({
           titulo, descripcion, clienteNombre, prioridad,
+          clienteId: clienteId || null,
           categoriaId: categoriaId || null,
           etiquetaIds: etiquetaIdsSeleccionadas,
         }),
@@ -207,6 +212,7 @@ export default function Home() {
       setTitulo("");
       setDescripcion("");
       setClienteNombre("");
+      setClienteId("");
       setPrioridad("MEDIA");
       setCategoriaId("");
       setEtiquetaIdsSeleccionadas([]);
@@ -312,7 +318,10 @@ export default function Home() {
           />
           <ClienteSelector
             value={clienteNombre}
-            onSelect={(c) => setClienteNombre(c ? c.nombreCompleto : "")}
+            onSelect={(c) => {
+              setClienteNombre(c ? c.nombreCompleto : "");
+              setClienteId(c ? c.id : "");
+            }}
             token={getToken()}
             onUnauthorized={manejarNoAutorizado}
           />
@@ -407,8 +416,10 @@ export default function Home() {
                 </div>
               </div>
               <p className="ticket-descripcion">{t.descripcion}</p>
-              {t.clienteNombre && (
-                <span className="ticket-cliente">Cliente: {t.clienteNombre}</span>
+              {(t.cliente || t.clienteNombre) && (
+                <span className="ticket-cliente">
+                  Cliente: {t.cliente?.nombreCompleto ?? t.clienteNombre}
+                </span>
               )}
               {(t.categoria || t.etiquetas.length > 0) && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6, marginBottom: 2 }}>

@@ -1,6 +1,8 @@
 package com.roostercode.helpdesk.ticket;
 
 import com.roostercode.helpdesk.categoria.CategoriaRepository;
+import com.roostercode.helpdesk.cliente.Cliente;
+import com.roostercode.helpdesk.cliente.ClienteRepository;
 import com.roostercode.helpdesk.etiqueta.Etiqueta;
 import com.roostercode.helpdesk.etiqueta.EtiquetaRepository;
 import jakarta.validation.Valid;
@@ -23,13 +25,16 @@ import java.util.stream.Stream;
 public class TicketController {
 
     private final TicketRepository repository;
+    private final ClienteRepository clienteRepository;
     private final CategoriaRepository categoriaRepository;
     private final EtiquetaRepository etiquetaRepository;
 
     public TicketController(TicketRepository repository,
+                            ClienteRepository clienteRepository,
                             CategoriaRepository categoriaRepository,
                             EtiquetaRepository etiquetaRepository) {
         this.repository = repository;
+        this.clienteRepository = clienteRepository;
         this.categoriaRepository = categoriaRepository;
         this.etiquetaRepository = etiquetaRepository;
     }
@@ -41,6 +46,7 @@ public class TicketController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String clienteNombre,
+            @RequestParam(required = false) UUID clienteId,
             @RequestParam(required = false) UUID categoriaId,
             @RequestParam(required = false) UUID etiquetaId
     ) {
@@ -53,7 +59,10 @@ public class TicketController {
             stream = stream.filter(t -> t.getTitulo().toLowerCase().contains(ql)
                     || t.getNumero().toString().contains(q.trim()));
         }
-        if (clienteNombre != null && !clienteNombre.isBlank()) {
+        if (clienteId != null) {
+            stream = stream.filter(t -> t.getCliente() != null
+                    && clienteId.equals(t.getCliente().getId()));
+        } else if (clienteNombre != null && !clienteNombre.isBlank()) {
             String cnl = clienteNombre.trim().toLowerCase();
             stream = stream.filter(t -> t.getClienteNombre() != null
                     && t.getClienteNombre().toLowerCase().contains(cnl));
@@ -98,8 +107,16 @@ public class TicketController {
                 .orElseThrow(() -> new TicketNoEncontradoException(id));
         ticket.setTitulo(req.titulo());
         ticket.setDescripcion(req.descripcion());
-        ticket.setClienteNombre(req.clienteNombre());
         ticket.setPrioridad(req.prioridad() != null ? req.prioridad() : ticket.getPrioridad());
+        if (req.clienteId() != null) {
+            Cliente cliente = clienteRepository.findById(req.clienteId()).orElse(null);
+            if (cliente == null) {
+                return ResponseEntity.badRequest().body(Map.of("errores", Map.of("clienteId", "Cliente no encontrado")));
+            }
+            ticket.setCliente(cliente);
+        } else {
+            ticket.setCliente(null);
+        }
         if (req.categoriaId() != null) {
             categoriaRepository.findById(req.categoriaId()).ifPresent(ticket::setCategoria);
         } else {
@@ -113,9 +130,16 @@ public class TicketController {
     }
 
     @PostMapping
-    public ResponseEntity<Ticket> crear(@Valid @RequestBody CrearTicketRequest req) {
+    public ResponseEntity<?> crear(@Valid @RequestBody CrearTicketRequest req) {
         Prioridad prioridad = (req.prioridad() != null) ? req.prioridad() : Prioridad.MEDIA;
         Ticket nuevo = new Ticket(req.titulo(), req.descripcion(), req.clienteNombre(), prioridad);
+        if (req.clienteId() != null) {
+            Cliente cliente = clienteRepository.findById(req.clienteId()).orElse(null);
+            if (cliente == null) {
+                return ResponseEntity.badRequest().body(Map.of("errores", Map.of("clienteId", "Cliente no encontrado")));
+            }
+            nuevo.setCliente(cliente);
+        }
         if (req.categoriaId() != null) {
             categoriaRepository.findById(req.categoriaId()).ifPresent(nuevo::setCategoria);
         }

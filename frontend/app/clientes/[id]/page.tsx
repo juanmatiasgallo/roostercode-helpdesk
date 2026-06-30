@@ -81,7 +81,7 @@ export default function DetalleCliente() {
       setCliente(c);
 
       const resT = await fetch(
-        `${API}/api/v1/tickets?clienteNombre=${encodeURIComponent(c.nombreCompleto)}`,
+        `${API}/api/v1/tickets?clienteId=${c.id}`,
         { headers: authHeader() }
       );
       if (resT.ok) setTickets(await resT.json());

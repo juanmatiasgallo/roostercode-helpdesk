@@ -11,6 +11,7 @@ type EstadoType = "ABIERTO" | "EN_PROGRESO" | "RESUELTO" | "CERRADO";
 
 type Categoria = { id: string; nombre: string };
 type Etiqueta  = { id: string; nombre: string; color: string };
+type ClienteInfo = { id: string; nombreCompleto: string };
 
 type Ticket = {
   id: string;
@@ -18,6 +19,7 @@ type Ticket = {
   titulo: string;
   descripcion: string;
   clienteNombre: string | null;
+  cliente: ClienteInfo | null;
   categoria: Categoria | null;
   etiquetas: Etiqueta[];
   prioridad: string;
@@ -136,7 +138,7 @@ function ReportesContent() {
       if (filtroQ.trim()) params.set("q", filtroQ.trim());
       if (filtroDesde) params.set("desde", filtroDesde);
       if (filtroHasta) params.set("hasta", filtroHasta);
-      if (filtroCliente) params.set("clienteNombre", filtroCliente.nombreCompleto);
+      if (filtroCliente) params.set("clienteId", filtroCliente.id);
       if (filtroCategoria) params.set("categoriaId", filtroCategoria);
       if (filtroEtiqueta) params.set("etiquetaId", filtroEtiqueta);
       const qs = params.toString();
@@ -189,7 +191,7 @@ function ReportesContent() {
     const rows = ticketsOrdenados.map((t) => [
       t.numero,
       `"${t.titulo.replace(/"/g, '""')}"`,
-      `"${(t.clienteNombre ?? "").replace(/"/g, '""')}"`,
+      `"${(t.cliente?.nombreCompleto ?? t.clienteNombre ?? "").replace(/"/g, '""')}"`,
       `"${(t.categoria?.nombre ?? "").replace(/"/g, '""')}"`,
       `"${t.etiquetas.map((e) => e.nombre).join(", ").replace(/"/g, '""')}"`,
       t.estado,
@@ -225,7 +227,7 @@ function ReportesContent() {
         }, 0) / conResolucion.length;
   const porCliente: Record<string, number> = {};
   for (const t of tickets) {
-    const n = t.clienteNombre ?? "(sin cliente)";
+    const n = t.cliente?.nombreCompleto ?? t.clienteNombre ?? "(sin cliente)";
     porCliente[n] = (porCliente[n] ?? 0) + 1;
   }
   const topClientes = Object.entries(porCliente).sort((a, b) => b[1] - a[1]).slice(0, 5);
@@ -433,7 +435,7 @@ function ReportesContent() {
                           <td style={{ ...tdStyle, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {t.titulo}
                           </td>
-                          <td style={tdStyle}>{t.clienteNombre ?? "—"}</td>
+                          <td style={tdStyle}>{t.cliente?.nombreCompleto ?? t.clienteNombre ?? "—"}</td>
                           <td style={tdStyle}>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                               {t.categoria && (

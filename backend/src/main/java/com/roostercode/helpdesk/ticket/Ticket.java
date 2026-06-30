@@ -1,6 +1,7 @@
 package com.roostercode.helpdesk.ticket;
 
 import com.roostercode.helpdesk.categoria.Categoria;
+import com.roostercode.helpdesk.cliente.Cliente;
 import com.roostercode.helpdesk.etiqueta.Etiqueta;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
@@ -28,6 +29,10 @@ public class Ticket {
 
     @Column(name = "cliente_nombre")
     private String clienteNombre;
+
+    @ManyToOne
+    @JoinColumn(name = "cliente_id")
+    private Cliente cliente;
 
     @ManyToOne
     @JoinColumn(name = "categoria_id")
@@ -111,6 +116,7 @@ public class Ticket {
     public String getTitulo() { return titulo; }
     public String getDescripcion() { return descripcion; }
     public String getClienteNombre() { return clienteNombre; }
+    public Cliente getCliente() { return cliente; }
     public Categoria getCategoria() { return categoria; }
     public Set<Etiqueta> getEtiquetas() { return etiquetas; }
     public Prioridad getPrioridad() { return prioridad; }
@@ -122,6 +128,7 @@ public class Ticket {
     public void setTitulo(String titulo) { this.titulo = titulo; }
     public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
     public void setClienteNombre(String clienteNombre) { this.clienteNombre = clienteNombre; }
+    public void setCliente(Cliente cliente) { this.cliente = cliente; }
     public void setPrioridad(Prioridad prioridad) { this.prioridad = prioridad; }
     public void setCategoria(Categoria categoria) { this.categoria = categoria; }
     public void setEtiquetas(Set<Etiqueta> etiquetas) { this.etiquetas = etiquetas; }
