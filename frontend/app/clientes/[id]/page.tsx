@@ -124,6 +124,7 @@ export default function DetalleCliente() {
             Clientes
           </Link>
           <Link href="/reportes" style={navLink}>Reportes</Link>
+          <Link href="/wiki" style={navLink}>Base de Conocimiento</Link>
           <Link href="/configuracion" style={navLink}>Configuración</Link>
         </nav>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>

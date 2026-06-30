@@ -339,6 +339,7 @@ export default function Configuracion() {
           <Link href="/proveedores"  style={navLink}>Proveedores</Link>
           <Link href="/clientes"     style={navLink}>Clientes</Link>
           <Link href="/reportes"     style={navLink}>Reportes</Link>
+          <Link href="/wiki"         style={navLink}>Base de Conocimiento</Link>
           <span                      style={navLinkActive}>Configuración</span>
         </nav>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>

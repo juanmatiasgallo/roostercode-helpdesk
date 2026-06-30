@@ -11,6 +11,9 @@ frontend/out/
 .env
 .env.local
 
+# Wiki (filesystem local, default de WIKI_DIR)
+data/wiki/
+
 # Editores / SO
 .DS_Store
 .idea/

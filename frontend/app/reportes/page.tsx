@@ -303,6 +303,7 @@ function ReportesContent() {
           <Link href="/proveedores" style={navLink}>Proveedores</Link>
           <Link href="/clientes" style={navLink}>Clientes</Link>
           <span style={navLinkActive}>Reportes</span>
+          <Link href="/wiki" style={navLink}>Base de Conocimiento</Link>
           <Link href="/configuracion" style={navLink}>Configuración</Link>
         </nav>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
