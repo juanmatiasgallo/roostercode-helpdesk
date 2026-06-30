@@ -8,6 +8,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 type Categoria = { id: string; nombre: string; activo: boolean; createdAt: string; };
 type Etiqueta  = { id: string; nombre: string; color: string;  createdAt: string; };
+type Usuario   = { id: string; nombre: string; email: string; rol: string; activo: boolean; };
 
 function getToken(): string | null {
   return typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -23,6 +24,7 @@ function jsonHeaders(): Record<string, string> {
 export default function Configuracion() {
   const router = useRouter();
   const [emailUsuario, setEmailUsuario] = useState<string | null>(null);
+  const [rolUsuario,   setRolUsuario]   = useState<string | null>(null);
 
   // ── Categorías ──────────────────────────────────────────
   const [categorias,      setCategorias]      = useState<Categoria[]>([]);
@@ -32,6 +34,22 @@ export default function Configuracion() {
   const [catErrores,      setCatErrores]      = useState<Record<string, string>>({});
   const [catErrorGeneral, setCatErrorGeneral] = useState<string | null>(null);
   const [catCargando,     setCatCargando]     = useState(false);
+
+  // ── Usuarios ─────────────────────────────────────────────
+  const [usuarios,        setUsuarios]        = useState<Usuario[]>([]);
+  const [editandoUsrId,   setEditandoUsrId]   = useState<string | null>(null);
+  const [usrNombre,       setUsrNombre]       = useState("");
+  const [usrEmail,        setUsrEmail]        = useState("");
+  const [usrRol,          setUsrRol]          = useState("AGENTE");
+  const [usrPassword,     setUsrPassword]     = useState("");
+  const [usrErrores,      setUsrErrores]      = useState<Record<string, string>>({});
+  const [usrErrorGeneral, setUsrErrorGeneral] = useState<string | null>(null);
+  const [usrCargando,     setUsrCargando]     = useState(false);
+
+  // ── SLA ──────────────────────────────────────────────────
+  const [slaHoras,        setSlaHoras]        = useState<Record<string, number>>({ BAJA: 0, MEDIA: 0, ALTA: 0, URGENTE: 0 });
+  const [slaErrorGeneral, setSlaErrorGeneral] = useState<string | null>(null);
+  const [slaCargando,     setSlaCargando]     = useState(false);
 
   // ── Etiquetas ────────────────────────────────────────────
   const [etiquetas,      setEtiquetas]      = useState<Etiqueta[]>([]);
@@ -50,7 +68,18 @@ export default function Configuracion() {
   async function cargarUsuario() {
     const res = await fetch(`${API}/api/v1/auth/me`, { headers: authHeader() });
     if (res.status === 401) { manejarNoAutorizado(); return; }
-    if (res.ok) setEmailUsuario((await res.json()).email);
+    if (res.ok) {
+      const me = await res.json();
+      setEmailUsuario(me.email);
+      setRolUsuario(me.rol);
+    }
+  }
+
+  async function cargarUsuarios() {
+    try {
+      const res = await fetch(`${API}/api/v1/usuarios`, { headers: authHeader() });
+      if (res.ok) setUsuarios(await res.json());
+    } catch { /* no crítico */ }
   }
 
   async function cargarCategorias() {
@@ -65,11 +94,25 @@ export default function Configuracion() {
     if (res.ok) setEtiquetas(await res.json());
   }
 
+  async function cargarSla() {
+    try {
+      const res = await fetch(`${API}/api/v1/sla`, { headers: authHeader() });
+      if (res.ok) {
+        const data: { prioridad: string; horasObjetivo: number }[] = await res.json();
+        const mapa: Record<string, number> = {};
+        data.forEach((d) => { mapa[d.prioridad] = d.horasObjetivo; });
+        setSlaHoras(mapa);
+      }
+    } catch { /* no crítico */ }
+  }
+
   useEffect(() => {
     if (!getToken()) { router.push("/login"); return; }
     cargarUsuario();
     cargarCategorias();
     cargarEtiquetas();
+    cargarUsuarios();
+    cargarSla();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function cerrarSesion() {
@@ -179,6 +222,105 @@ export default function Configuracion() {
     const res = await fetch(`${API}/api/v1/etiquetas/${e.id}`, { method: "DELETE", headers: authHeader() });
     if (res.status === 401) { manejarNoAutorizado(); return; }
     if (res.ok) await cargarEtiquetas();
+  }
+
+  // ── CRUD Usuarios ────────────────────────────────────────
+
+  function iniciarEdicionUsr(u: Usuario) {
+    setEditandoUsrId(u.id);
+    setUsrNombre(u.nombre);
+    setUsrEmail(u.email);
+    setUsrRol(u.rol);
+    setUsrPassword("");
+    setUsrErrores({});
+    setUsrErrorGeneral(null);
+  }
+
+  function cancelarEdicionUsr() {
+    setEditandoUsrId(null);
+    setUsrNombre("");
+    setUsrEmail("");
+    setUsrRol("AGENTE");
+    setUsrPassword("");
+    setUsrErrores({});
+    setUsrErrorGeneral(null);
+  }
+
+  async function guardarUsuario() {
+    setUsrCargando(true);
+    setUsrErrores({});
+    setUsrErrorGeneral(null);
+    try {
+      if (editandoUsrId) {
+        const res = await fetch(`${API}/api/v1/usuarios/${editandoUsrId}`, {
+          method: "PUT",
+          headers: jsonHeaders(),
+          body: JSON.stringify({ nombre: usrNombre, rol: usrRol }),
+        });
+        if (res.status === 401) { manejarNoAutorizado(); return; }
+        if (res.status === 400) { setUsrErrores((await res.json()).errores ?? {}); return; }
+        if (!res.ok) throw new Error();
+        setEditandoUsrId(null);
+        setUsrNombre("");
+        setUsrRol("AGENTE");
+      } else {
+        const res = await fetch(`${API}/api/v1/usuarios`, {
+          method: "POST",
+          headers: jsonHeaders(),
+          body: JSON.stringify({ nombre: usrNombre, email: usrEmail, rol: usrRol, password: usrPassword }),
+        });
+        if (res.status === 401) { manejarNoAutorizado(); return; }
+        if (res.status === 400) { setUsrErrores((await res.json()).errores ?? {}); return; }
+        if (res.status === 409) { setUsrErrorGeneral((await res.json()).error ?? "Email duplicado"); return; }
+        if (!res.ok) throw new Error();
+        setUsrNombre("");
+        setUsrEmail("");
+        setUsrRol("AGENTE");
+        setUsrPassword("");
+      }
+      await cargarUsuarios();
+    } catch {
+      setUsrErrorGeneral("No se pudo conectar con el backend.");
+    } finally {
+      setUsrCargando(false);
+    }
+  }
+
+  // ── SLA ──────────────────────────────────────────────────
+
+  async function guardarSla() {
+    setSlaCargando(true);
+    setSlaErrorGeneral(null);
+    try {
+      const res = await fetch(`${API}/api/v1/sla`, {
+        method: "PUT",
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          items: ["BAJA", "MEDIA", "ALTA", "URGENTE"].map((p) => ({
+            prioridad: p,
+            horasObjetivo: Number(slaHoras[p]),
+          })),
+        }),
+      });
+      if (res.status === 401) { manejarNoAutorizado(); return; }
+      if (res.status === 400) { setSlaErrorGeneral("Revisá los valores ingresados."); return; }
+      if (!res.ok) throw new Error();
+      await cargarSla();
+    } catch {
+      setSlaErrorGeneral("No se pudo conectar con el backend.");
+    } finally {
+      setSlaCargando(false);
+    }
+  }
+
+  async function toggleActivarUsr(u: Usuario) {
+    const accion = u.activo ? "desactivar" : "activar";
+    const res = await fetch(`${API}/api/v1/usuarios/${u.id}/${accion}`, {
+      method: "PUT",
+      headers: authHeader(),
+    });
+    if (res.status === 401) { manejarNoAutorizado(); return; }
+    if (res.ok) await cargarUsuarios();
   }
 
   const navLink: React.CSSProperties = {
@@ -338,6 +480,145 @@ export default function Configuracion() {
             </div>
           ))}
         </section>
+
+        {/* ── SLA (solo ADMIN) ── */}
+        {rolUsuario === "ADMIN" && (
+          <section className="section-card" style={{ marginTop: 32 }}>
+            <h2 className="section-title">SLA — Tiempos objetivo (horas)</h2>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {(["BAJA", "MEDIA", "ALTA", "URGENTE"] as const).map((p) => (
+                <div key={p} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 12, color: "var(--color-text-muted)", textTransform: "uppercase" }}>
+                    {p}
+                  </label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    min={1}
+                    style={{ width: 100, marginBottom: 0 }}
+                    value={slaHoras[p] ?? ""}
+                    onChange={(e) => setSlaHoras((prev) => ({ ...prev, [p]: Number(e.target.value) }))}
+                  />
+                </div>
+              ))}
+            </div>
+            {slaErrorGeneral && <p className="error-msg" style={{ marginTop: 10 }}>{slaErrorGeneral}</p>}
+            <div style={{ marginTop: 10 }}>
+              <button className="btn-primary" onClick={guardarSla} disabled={slaCargando}>
+                {slaCargando ? "Guardando…" : "Guardar SLA"}
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* ── Usuarios / Agentes (solo ADMIN) ── */}
+        {rolUsuario === "ADMIN" && (
+          <>
+            <section className="section-card" style={{ marginTop: 32 }}>
+              <h2 className="section-title">
+                {editandoUsrId ? "Editar usuario" : "Nuevo usuario"}
+              </h2>
+
+              <input
+                className="form-input"
+                placeholder="Nombre"
+                value={usrNombre}
+                onChange={(e) => setUsrNombre(e.target.value)}
+              />
+              {usrErrores.nombre && <p style={fieldError}>{usrErrores.nombre}</p>}
+
+              {!editandoUsrId && (
+                <>
+                  <input
+                    className="form-input"
+                    placeholder="Email"
+                    type="email"
+                    value={usrEmail}
+                    onChange={(e) => setUsrEmail(e.target.value)}
+                    autoComplete="off"
+                  />
+                  {usrErrores.email && <p style={fieldError}>{usrErrores.email}</p>}
+
+                  <input
+                    className="form-input"
+                    placeholder="Contraseña inicial"
+                    type="password"
+                    value={usrPassword}
+                    onChange={(e) => setUsrPassword(e.target.value)}
+                    autoComplete="new-password"
+                  />
+                  {usrErrores.password && <p style={fieldError}>{usrErrores.password}</p>}
+                </>
+              )}
+
+              <select
+                className="form-input"
+                value={usrRol}
+                onChange={(e) => setUsrRol(e.target.value)}
+              >
+                <option value="AGENTE">Agente</option>
+                <option value="ADMIN">Admin</option>
+              </select>
+              {usrErrores.rol && <p style={fieldError}>{usrErrores.rol}</p>}
+
+              {usrErrorGeneral && <p className="error-msg">{usrErrorGeneral}</p>}
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn-primary" onClick={guardarUsuario} disabled={usrCargando}>
+                  {usrCargando ? "Guardando…" : editandoUsrId ? "Guardar cambios" : "Crear usuario"}
+                </button>
+                {editandoUsrId && (
+                  <button className="btn-secondary" onClick={cancelarEdicionUsr} disabled={usrCargando}>
+                    Cancelar
+                  </button>
+                )}
+              </div>
+            </section>
+
+            <section style={{ marginTop: 8 }}>
+              <h2 className="section-heading">Usuarios ({usuarios.length})</h2>
+              {usuarios.length === 0 && <p className="empty-msg">No hay usuarios.</p>}
+              {usuarios.map((u) => (
+                <div key={u.id} className="ticket-card">
+                  <div className="ticket-header">
+                    <span className="ticket-numero-titulo">{u.nombre}</span>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: "2px 8px",
+                        borderRadius: "var(--radius-sm)",
+                        background: u.rol === "ADMIN" ? "#EFF6FF" : "#F5F3FF",
+                        color: u.rol === "ADMIN" ? "#1D4ED8" : "#6D28D9",
+                      }}>
+                        {u.rol}
+                      </span>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: "2px 8px",
+                        borderRadius: "var(--radius-sm)",
+                        background: u.activo ? "#D1FAE5" : "#F3F4F6",
+                        color: u.activo ? "#065F46" : "#6B7280",
+                      }}>
+                        {u.activo ? "ACTIVO" : "INACTIVO"}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="ticket-descripcion" style={{ marginBottom: 6 }}>{u.email}</p>
+                  <div className="ticket-acciones">
+                    <button className="btn-secondary" onClick={() => iniciarEdicionUsr(u)}>
+                      Editar
+                    </button>
+                    <button
+                      className="btn-secondary"
+                      onClick={() => toggleActivarUsr(u)}
+                      style={{ color: u.activo ? "var(--color-primary)" : "#16A34A" }}
+                    >
+                      {u.activo ? "Desactivar" : "Activar"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </section>
+          </>
+        )}
 
       </main>
     </>

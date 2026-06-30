@@ -8,10 +8,10 @@ import ClienteSelector from "./components/ClienteSelector";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-type Categoria = { id: string; nombre: string; activo: boolean; };
-type Etiqueta  = { id: string; nombre: string; color: string; };
-
+type Categoria   = { id: string; nombre: string; activo: boolean; };
+type Etiqueta    = { id: string; nombre: string; color: string; };
 type ClienteInfo = { id: string; nombreCompleto: string };
+type UsuarioInfo = { id: string; nombre: string; activo: boolean; };
 
 type Ticket = {
   id: string;
@@ -20,6 +20,7 @@ type Ticket = {
   descripcion: string;
   clienteNombre: string | null;
   cliente: ClienteInfo | null;
+  responsable: UsuarioInfo | null;
   categoria: Categoria | null;
   etiquetas: Etiqueta[];
   prioridad: string;
@@ -27,6 +28,8 @@ type Ticket = {
   createdAt: string;
   resueltoEn: string | null;
   cerradoEn: string | null;
+  fechaLimite: string | null;
+  estadoSla: string | null;
 };
 
 type Resumen = {
@@ -36,6 +39,8 @@ type Resumen = {
   cerrados: number;
   total: number;
   tiempoPromedioResolucionHoras: number | null;
+  porVencer: number;
+  vencidos: number;
 };
 
 type Accion = "iniciar" | "resolver" | "cerrar" | "reabrir";
@@ -62,6 +67,10 @@ function prioridadClass(p: string) {
 
 function estadoClass(estado: Ticket["estado"]) {
   return `badge-estado estado-${estado.toLowerCase().replace("_", "-")}`;
+}
+
+function slaClass(estadoSla: string) {
+  return `badge-sla sla-${estadoSla.toLowerCase().replace("_", "-")}`;
 }
 
 function getToken(): string | null {
@@ -96,8 +105,10 @@ export default function Home() {
   const [prioridad, setPrioridad] = useState("MEDIA");
   const [categoriaId, setCategoriaId] = useState("");
   const [etiquetaIdsSeleccionadas, setEtiquetaIdsSeleccionadas] = useState<string[]>([]);
+  const [responsableId, setResponsableId] = useState("");
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
+  const [usuarios, setUsuarios] = useState<UsuarioInfo[]>([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorTransicion, setErrorTransicion] = useState<string | null>(null);
@@ -137,6 +148,13 @@ export default function Home() {
     } catch { /* no crítico */ }
   }
 
+  async function cargarUsuarios() {
+    try {
+      const res = await fetch(`${API}/api/v1/usuarios`, { headers: authHeader() });
+      if (res.ok) setUsuarios(await res.json());
+    } catch { /* no crítico */ }
+  }
+
   async function cargarTickets() {
     try {
       const res = await fetch(`${API}/api/v1/tickets?estado=ABIERTO`, { headers: authHeader() });
@@ -166,6 +184,7 @@ export default function Home() {
     cargarResumen();
     cargarCategorias();
     cargarEtiquetas();
+    cargarUsuarios();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function cerrarSesion() {
@@ -203,6 +222,7 @@ export default function Home() {
         body: JSON.stringify({
           titulo, descripcion, clienteNombre, prioridad,
           clienteId: clienteId || null,
+          responsableId: responsableId || null,
           categoriaId: categoriaId || null,
           etiquetaIds: etiquetaIdsSeleccionadas,
         }),
@@ -213,6 +233,7 @@ export default function Home() {
       setDescripcion("");
       setClienteNombre("");
       setClienteId("");
+      setResponsableId("");
       setPrioridad("MEDIA");
       setCategoriaId("");
       setEtiquetaIdsSeleccionadas([]);
@@ -276,6 +297,8 @@ export default function Home() {
                 { label: "Resueltos",   value: resumen.resueltos,   color: "#16A34A",              href: "/reportes?estado=RESUELTO" },
                 { label: "Cerrados",    value: resumen.cerrados,    color: "#6B7280",              href: "/reportes?estado=CERRADO" },
                 { label: "Total",       value: resumen.total,       color: "var(--color-text-muted)", href: "/reportes" },
+                { label: "SLA por vencer", value: resumen.porVencer, color: "#B45309", href: "/reportes?sla=POR_VENCER" },
+                { label: "SLA vencidos",   value: resumen.vencidos,  color: "var(--color-primary)", href: "/reportes?sla=VENCIDO" },
               ] as Array<{ label: string; value: number | string; color: string; href?: string }>
             )
               .concat(
@@ -335,6 +358,18 @@ export default function Home() {
               + Nuevo cliente
             </a>
           </div>
+          {usuarios.length > 0 && (
+            <select
+              className="form-input"
+              value={responsableId}
+              onChange={(e) => setResponsableId(e.target.value)}
+            >
+              <option value="">Sin responsable</option>
+              {usuarios.filter((u) => u.activo).map((u) => (
+                <option key={u.id} value={u.id}>{u.nombre}</option>
+              ))}
+            </select>
+          )}
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
             <select
               className="form-input"
@@ -413,12 +448,20 @@ export default function Home() {
                 <div className="ticket-badges">
                   <span className={estadoClass(t.estado)}>{t.estado}</span>
                   <span className={prioridadClass(t.prioridad)}>{t.prioridad}</span>
+                  {t.estadoSla && (
+                    <span className={slaClass(t.estadoSla)}>{t.estadoSla.replace("_", " ")}</span>
+                  )}
                 </div>
               </div>
               <p className="ticket-descripcion">{t.descripcion}</p>
               {(t.cliente || t.clienteNombre) && (
                 <span className="ticket-cliente">
                   Cliente: {t.cliente?.nombreCompleto ?? t.clienteNombre}
+                </span>
+              )}
+              {t.responsable && (
+                <span className="ticket-cliente" style={{ marginLeft: 12 }}>
+                  Responsable: {t.responsable.nombre}
                 </span>
               )}
               {(t.categoria || t.etiquetas.length > 0) && (

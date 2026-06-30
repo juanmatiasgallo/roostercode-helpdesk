@@ -1,5 +1,5 @@
 package com.roostercode.helpdesk.auth;
 
 public enum RolUsuario {
-    ADMIN
+    ADMIN, AGENTE
 }

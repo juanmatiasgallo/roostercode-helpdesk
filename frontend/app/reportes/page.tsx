@@ -9,9 +9,10 @@ const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 type EstadoType = "ABIERTO" | "EN_PROGRESO" | "RESUELTO" | "CERRADO";
 
-type Categoria = { id: string; nombre: string };
-type Etiqueta  = { id: string; nombre: string; color: string };
+type Categoria   = { id: string; nombre: string };
+type Etiqueta    = { id: string; nombre: string; color: string };
 type ClienteInfo = { id: string; nombreCompleto: string };
+type UsuarioInfo = { id: string; nombre: string; activo: boolean };
 
 type Ticket = {
   id: string;
@@ -20,6 +21,7 @@ type Ticket = {
   descripcion: string;
   clienteNombre: string | null;
   cliente: ClienteInfo | null;
+  responsable: UsuarioInfo | null;
   categoria: Categoria | null;
   etiquetas: Etiqueta[];
   prioridad: string;
@@ -27,6 +29,8 @@ type Ticket = {
   createdAt: string;
   resueltoEn: string | null;
   cerradoEn: string | null;
+  fechaLimite: string | null;
+  estadoSla: string | null;
 };
 
 type CampoOrden = "creado" | "prioridad";
@@ -51,6 +55,10 @@ function estadoClass(estado: EstadoType): string {
   return `badge-estado estado-${estado.toLowerCase().replace("_", "-")}`;
 }
 
+function slaClass(estadoSla: string): string {
+  return `badge-sla sla-${estadoSla.toLowerCase().replace("_", "-")}`;
+}
+
 function formatearFecha(iso: string): string {
   return new Date(iso).toLocaleString("es-UY", {
     day: "2-digit",
@@ -73,11 +81,13 @@ function ReportesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const estadoInicial = searchParams.get("estado") ?? "";
+  const slaInicial = searchParams.get("sla") ?? "";
 
   const [emailUsuario, setEmailUsuario] = useState<string | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
+  const [usuarios, setUsuarios] = useState<UsuarioInfo[]>([]);
   const [filtroEstado, setFiltroEstado] = useState(estadoInicial);
   const [filtroQ, setFiltroQ] = useState("");
   const [filtroDesde, setFiltroDesde] = useState("");
@@ -85,6 +95,8 @@ function ReportesContent() {
   const [filtroCliente, setFiltroCliente] = useState<ClienteData | null>(null);
   const [filtroCategoria, setFiltroCategoria] = useState("");
   const [filtroEtiqueta, setFiltroEtiqueta] = useState("");
+  const [filtroResponsable, setFiltroResponsable] = useState("");
+  const [filtroSla, setFiltroSla] = useState(slaInicial);
   const [buscando, setBuscando] = useState(false);
   const [buscado, setBuscado] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,12 +128,20 @@ function ReportesContent() {
     } catch { /* no crítico */ }
   }
 
+  async function cargarUsuarios() {
+    try {
+      const res = await fetch(`${API}/api/v1/usuarios`, { headers: authHeader() });
+      if (res.ok) setUsuarios(await res.json());
+    } catch { /* no crítico */ }
+  }
+
   useEffect(() => {
     if (!getToken()) { router.push("/login"); return; }
     cargarUsuario();
     cargarCategorias();
     cargarEtiquetas();
-    if (estadoInicial) buscar();
+    cargarUsuarios();
+    if (estadoInicial || slaInicial) buscar();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function cerrarSesion() {
@@ -141,6 +161,8 @@ function ReportesContent() {
       if (filtroCliente) params.set("clienteId", filtroCliente.id);
       if (filtroCategoria) params.set("categoriaId", filtroCategoria);
       if (filtroEtiqueta) params.set("etiquetaId", filtroEtiqueta);
+      if (filtroResponsable) params.set("responsableId", filtroResponsable);
+      if (filtroSla) params.set("sla", filtroSla);
       const qs = params.toString();
       const res = await fetch(`${API}/api/v1/tickets${qs ? "?" + qs : ""}`, { headers: authHeader() });
       if (res.status === 401) { manejarNoAutorizado(); return; }
@@ -162,6 +184,8 @@ function ReportesContent() {
     setFiltroCliente(null);
     setFiltroCategoria("");
     setFiltroEtiqueta("");
+    setFiltroResponsable("");
+    setFiltroSla("");
     setTickets([]);
     setBuscado(false);
     setError(null);
@@ -187,15 +211,18 @@ function ReportesContent() {
   });
 
   function exportarCSV() {
-    const headers = ["Número", "Título", "Cliente", "Categoría", "Etiquetas", "Estado", "Prioridad", "Creado", "Resuelto", "Cerrado"];
+    const headers = ["Número", "Título", "Cliente", "Responsable", "Categoría", "Etiquetas", "Estado", "Prioridad", "SLA", "Fecha límite", "Creado", "Resuelto", "Cerrado"];
     const rows = ticketsOrdenados.map((t) => [
       t.numero,
       `"${t.titulo.replace(/"/g, '""')}"`,
       `"${(t.cliente?.nombreCompleto ?? t.clienteNombre ?? "").replace(/"/g, '""')}"`,
+      `"${(t.responsable?.nombre ?? "").replace(/"/g, '""')}"`,
       `"${(t.categoria?.nombre ?? "").replace(/"/g, '""')}"`,
       `"${t.etiquetas.map((e) => e.nombre).join(", ").replace(/"/g, '""')}"`,
       t.estado,
       t.prioridad,
+      t.estadoSla ?? "",
+      t.fechaLimite ? formatearFecha(t.fechaLimite) : "",
       formatearFecha(t.createdAt),
       t.resueltoEn ? formatearFecha(t.resueltoEn) : "",
       t.cerradoEn ? formatearFecha(t.cerradoEn) : "",
@@ -342,8 +369,7 @@ function ReportesContent() {
               </p>
             )}
           </div>
-          {(categorias.length > 0 || etiquetas.length > 0) && (
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
               {categorias.length > 0 && (
                 <select
                   className="form-input"
@@ -370,8 +396,33 @@ function ReportesContent() {
                   ))}
                 </select>
               )}
-            </div>
-          )}
+              {usuarios.length > 0 && (
+                <select
+                  className="form-input"
+                  style={{ flex: "1 1 180px", minWidth: 160, marginBottom: 0 }}
+                  value={filtroResponsable}
+                  onChange={(e) => setFiltroResponsable(e.target.value)}
+                >
+                  <option value="">Todos los responsables</option>
+                  {usuarios.map((u) => (
+                    <option key={u.id} value={u.id}>{u.nombre}</option>
+                  ))}
+                </select>
+              )}
+              <select
+                className="form-input"
+                style={{ flex: "1 1 180px", minWidth: 160, marginBottom: 0 }}
+                value={filtroSla}
+                onChange={(e) => setFiltroSla(e.target.value)}
+              >
+                <option value="">Todos los SLA</option>
+                <option value="EN_TIEMPO">En tiempo</option>
+                <option value="POR_VENCER">Por vencer</option>
+                <option value="VENCIDO">Vencido</option>
+                <option value="CUMPLIDO">Cumplido</option>
+                <option value="INCUMPLIDO">Incumplido</option>
+              </select>
+          </div>
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
             <button className="btn-primary" onClick={buscar} disabled={buscando}>
               {buscando ? "Buscando…" : "Buscar"}
@@ -407,6 +458,8 @@ function ReportesContent() {
                         <th style={thStyle}>#</th>
                         <th style={thStyle}>Título</th>
                         <th style={thStyle}>Cliente</th>
+                        <th style={thStyle}>Responsable</th>
+                        <th style={thStyle}>SLA</th>
                         <th style={thStyle}>Categoría / Etiquetas</th>
                         <th style={thStyle}>Estado</th>
                         <th
@@ -436,6 +489,12 @@ function ReportesContent() {
                             {t.titulo}
                           </td>
                           <td style={tdStyle}>{t.cliente?.nombreCompleto ?? t.clienteNombre ?? "—"}</td>
+                          <td style={tdStyle}>{t.responsable?.nombre ?? "—"}</td>
+                          <td style={tdStyle}>
+                            {t.estadoSla ? (
+                              <span className={slaClass(t.estadoSla)}>{t.estadoSla.replace("_", " ")}</span>
+                            ) : "—"}
+                          </td>
                           <td style={tdStyle}>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                               {t.categoria && (

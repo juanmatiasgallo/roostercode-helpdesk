@@ -163,6 +163,22 @@ body {
 .prioridad-alta    { background: #FFF7ED; color: #C2410C; border-color: #FDBA74; }
 .prioridad-urgente { background: #FEF2F2; color: #B91C1C; border-color: #FECACA; }
 
+.badge-sla {
+  display: inline-block;
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sla-en-tiempo  { background: #D1FAE5; color: #065F46; }
+.sla-cumplido   { background: #D1FAE5; color: #065F46; }
+.sla-por-vencer { background: #FEF3C7; color: #B45309; }
+.sla-vencido    { background: #FEE2E2; color: #B91C1C; }
+.sla-incumplido { background: #FEE2E2; color: #B91C1C; }
+
 /* ── Buttons ─────────────────────────────────────────── */
 .btn-primary {
   background: var(--color-primary);

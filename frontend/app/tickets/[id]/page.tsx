@@ -10,9 +10,10 @@ const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 type EstadoType = "ABIERTO" | "EN_PROGRESO" | "RESUELTO" | "CERRADO";
 type Accion = "iniciar" | "resolver" | "cerrar" | "reabrir";
-type Categoria = { id: string; nombre: string; activo: boolean };
-type Etiqueta  = { id: string; nombre: string; color: string };
+type Categoria   = { id: string; nombre: string; activo: boolean };
+type Etiqueta    = { id: string; nombre: string; color: string };
 type ClienteInfo = { id: string; nombreCompleto: string };
+type UsuarioInfo = { id: string; nombre: string; activo: boolean };
 
 type Ticket = {
   id: string;
@@ -21,6 +22,7 @@ type Ticket = {
   descripcion: string;
   clienteNombre: string | null;
   cliente: ClienteInfo | null;
+  responsable: UsuarioInfo | null;
   categoria: Categoria | null;
   etiquetas: Etiqueta[];
   prioridad: string;
@@ -28,6 +30,8 @@ type Ticket = {
   createdAt: string;
   resueltoEn: string | null;
   cerradoEn: string | null;
+  fechaLimite: string | null;
+  estadoSla: string | null;
 };
 
 const PRIORIDADES = ["BAJA", "MEDIA", "ALTA", "URGENTE"];
@@ -52,6 +56,10 @@ function prioridadClass(p: string) {
 
 function estadoClass(estado: EstadoType) {
   return `badge-estado estado-${estado.toLowerCase().replace("_", "-")}`;
+}
+
+function slaClass(estadoSla: string) {
+  return `badge-sla sla-${estadoSla.toLowerCase().replace("_", "-")}`;
 }
 
 function getToken(): string | null {
@@ -87,6 +95,7 @@ export default function DetalleTicket() {
 
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
+  const [usuarios, setUsuarios] = useState<UsuarioInfo[]>([]);
 
   const [editando, setEditando] = useState(false);
   const [editTitulo, setEditTitulo] = useState("");
@@ -94,6 +103,7 @@ export default function DetalleTicket() {
   const [editPrioridad, setEditPrioridad] = useState("MEDIA");
   const [editClienteId, setEditClienteId] = useState("");
   const [editClienteNombre, setEditClienteNombre] = useState("");
+  const [editResponsableId, setEditResponsableId] = useState("");
   const [editCategoriaId, setEditCategoriaId] = useState("");
   const [editEtiquetaIds, setEditEtiquetaIds] = useState<string[]>([]);
   const [guardando, setGuardando] = useState(false);
@@ -126,6 +136,13 @@ export default function DetalleTicket() {
     } catch { /* no crítico */ }
   }
 
+  async function cargarUsuarios() {
+    try {
+      const res = await fetch(`${API}/api/v1/usuarios`, { headers: authHeader() });
+      if (res.ok) setUsuarios(await res.json());
+    } catch { /* no crítico */ }
+  }
+
   async function cargarTicket() {
     setCargando(true);
     setErrorCarga(null);
@@ -148,6 +165,7 @@ export default function DetalleTicket() {
     cargarTicket();
     cargarCategorias();
     cargarEtiquetas();
+    cargarUsuarios();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function cerrarSesion() {
@@ -162,6 +180,7 @@ export default function DetalleTicket() {
     setEditPrioridad(ticket.prioridad);
     setEditClienteId(ticket.cliente?.id ?? "");
     setEditClienteNombre(ticket.cliente?.nombreCompleto ?? ticket.clienteNombre ?? "");
+    setEditResponsableId(ticket.responsable?.id ?? "");
     setEditCategoriaId(ticket.categoria?.id ?? "");
     setEditEtiquetaIds(ticket.etiquetas.map((e) => e.id));
     setErroresCampos({});
@@ -188,6 +207,7 @@ export default function DetalleTicket() {
           descripcion: editDescripcion,
           prioridad: editPrioridad,
           clienteId: editClienteId || null,
+          responsableId: editResponsableId || null,
           categoriaId: editCategoriaId || null,
           etiquetaIds: editEtiquetaIds,
         }),
@@ -287,6 +307,9 @@ export default function DetalleTicket() {
                 <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                   <span className={estadoClass(ticket.estado)}>{ticket.estado.replace("_", " ")}</span>
                   <span className={prioridadClass(ticket.prioridad)}>{ticket.prioridad}</span>
+                  {ticket.estadoSla && (
+                    <span className={slaClass(ticket.estadoSla)}>{ticket.estadoSla.replace("_", " ")}</span>
+                  )}
                 </div>
               </div>
 
@@ -301,6 +324,11 @@ export default function DetalleTicket() {
                   {(ticket.cliente || ticket.clienteNombre) && (
                     <p style={{ margin: "0 0 10px", fontSize: 13, color: "var(--color-text-muted)" }}>
                       Cliente: {ticket.cliente?.nombreCompleto ?? ticket.clienteNombre}
+                    </p>
+                  )}
+                  {ticket.responsable && (
+                    <p style={{ margin: "0 0 10px", fontSize: 13, color: "var(--color-text-muted)" }}>
+                      Responsable: {ticket.responsable.nombre}
                     </p>
                   )}
                   {(ticket.categoria || ticket.etiquetas.length > 0) && (
@@ -334,6 +362,7 @@ export default function DetalleTicket() {
                   )}
                   <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 14, fontSize: 12, color: "var(--color-text-muted)" }}>
                     <span><strong>Creado:</strong> {formatearFecha(ticket.createdAt)}</span>
+                    {ticket.fechaLimite && <span><strong>Fecha límite:</strong> {formatearFecha(ticket.fechaLimite)}</span>}
                     {ticket.resueltoEn && <span><strong>Resuelto:</strong> {formatearFecha(ticket.resueltoEn)}</span>}
                     {ticket.cerradoEn && <span><strong>Cerrado:</strong> {formatearFecha(ticket.cerradoEn)}</span>}
                   </div>
@@ -383,6 +412,19 @@ export default function DetalleTicket() {
                     token={getToken()}
                     onUnauthorized={manejarNoAutorizado}
                   />
+
+                  {usuarios.length > 0 && (
+                    <select
+                      className="form-input"
+                      value={editResponsableId}
+                      onChange={(e) => setEditResponsableId(e.target.value)}
+                    >
+                      <option value="">Sin responsable</option>
+                      {usuarios.filter((u) => u.activo || u.id === editResponsableId).map((u) => (
+                        <option key={u.id} value={u.id}>{u.nombre}</option>
+                      ))}
+                    </select>
+                  )}
 
                   {categorias.length > 0 && (
                     <select

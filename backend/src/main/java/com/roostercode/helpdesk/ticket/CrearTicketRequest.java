@@ -15,6 +15,7 @@ public record CrearTicketRequest(
         String clienteNombre,
         Prioridad prioridad,
         UUID clienteId,
+        UUID responsableId,
         UUID categoriaId,
         List<UUID> etiquetaIds
 ) {}

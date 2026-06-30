@@ -1,10 +1,13 @@
 package com.roostercode.helpdesk.ticket;
 
+import com.roostercode.helpdesk.auth.Usuario;
+import com.roostercode.helpdesk.auth.UsuarioRepository;
 import com.roostercode.helpdesk.categoria.CategoriaRepository;
 import com.roostercode.helpdesk.cliente.Cliente;
 import com.roostercode.helpdesk.cliente.ClienteRepository;
 import com.roostercode.helpdesk.etiqueta.Etiqueta;
 import com.roostercode.helpdesk.etiqueta.EtiquetaRepository;
+import com.roostercode.helpdesk.sla.SlaService;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -25,18 +28,24 @@ import java.util.stream.Stream;
 public class TicketController {
 
     private final TicketRepository repository;
+    private final UsuarioRepository usuarioRepository;
     private final ClienteRepository clienteRepository;
     private final CategoriaRepository categoriaRepository;
     private final EtiquetaRepository etiquetaRepository;
+    private final SlaService slaService;
 
     public TicketController(TicketRepository repository,
+                            UsuarioRepository usuarioRepository,
                             ClienteRepository clienteRepository,
                             CategoriaRepository categoriaRepository,
-                            EtiquetaRepository etiquetaRepository) {
+                            EtiquetaRepository etiquetaRepository,
+                            SlaService slaService) {
         this.repository = repository;
+        this.usuarioRepository = usuarioRepository;
         this.clienteRepository = clienteRepository;
         this.categoriaRepository = categoriaRepository;
         this.etiquetaRepository = etiquetaRepository;
+        this.slaService = slaService;
     }
 
     @GetMapping
@@ -47,8 +56,10 @@ public class TicketController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String clienteNombre,
             @RequestParam(required = false) UUID clienteId,
+            @RequestParam(required = false) UUID responsableId,
             @RequestParam(required = false) UUID categoriaId,
-            @RequestParam(required = false) UUID etiquetaId
+            @RequestParam(required = false) UUID etiquetaId,
+            @RequestParam(required = false) String sla
     ) {
         Stream<Ticket> stream = repository.findAllByOrderByCreatedAtDesc().stream();
         if (estado != null) stream = stream.filter(t -> t.getEstado() == estado);
@@ -67,6 +78,10 @@ public class TicketController {
             stream = stream.filter(t -> t.getClienteNombre() != null
                     && t.getClienteNombre().toLowerCase().contains(cnl));
         }
+        if (responsableId != null) {
+            stream = stream.filter(t -> t.getResponsable() != null
+                    && responsableId.equals(t.getResponsable().getId()));
+        }
         if (categoriaId != null) {
             stream = stream.filter(t -> t.getCategoria() != null
                     && categoriaId.equals(t.getCategoria().getId()));
@@ -75,7 +90,15 @@ public class TicketController {
             stream = stream.filter(t -> t.getEtiquetas().stream()
                     .anyMatch(e -> etiquetaId.equals(e.getId())));
         }
-        return stream.collect(Collectors.toList());
+        List<Ticket> resultado = stream.collect(Collectors.toList());
+        slaService.aplicar(resultado);
+        if (sla != null && !sla.isBlank()) {
+            String slaUpper = sla.trim().toUpperCase();
+            resultado = resultado.stream()
+                    .filter(t -> slaUpper.equals(t.getEstadoSla()))
+                    .collect(Collectors.toList());
+        }
+        return resultado;
     }
 
     @GetMapping("/resumen")
@@ -91,14 +114,21 @@ public class TicketController {
                         .mapToDouble(t -> Duration.between(t.getCreatedAt(), t.getResueltoEn()).toMinutes() / 60.0)
                         .average()
                         .getAsDouble();
-        return new TicketResumenResponse(abiertos, enProgreso, resueltos, cerrados, total, promedio);
+        List<Ticket> activos = repository.findAllByOrderByCreatedAtDesc().stream()
+                .filter(t -> t.getEstado() == EstadoTicket.ABIERTO || t.getEstado() == EstadoTicket.EN_PROGRESO)
+                .collect(Collectors.toList());
+        slaService.aplicar(activos);
+        long porVencer = activos.stream().filter(t -> "POR_VENCER".equals(t.getEstadoSla())).count();
+        long vencidos = activos.stream().filter(t -> "VENCIDO".equals(t.getEstadoSla())).count();
+        return new TicketResumenResponse(abiertos, enProgreso, resueltos, cerrados, total, promedio, porVencer, vencidos);
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<Ticket> obtener(@PathVariable UUID id) {
-        return repository.findById(id)
-                .map(ResponseEntity::ok)
+        Ticket ticket = repository.findById(id)
                 .orElseThrow(() -> new TicketNoEncontradoException(id));
+        slaService.aplicar(ticket);
+        return ResponseEntity.ok(ticket);
     }
 
     @PutMapping("/{id}")
@@ -117,6 +147,15 @@ public class TicketController {
         } else {
             ticket.setCliente(null);
         }
+        if (req.responsableId() != null) {
+            Usuario responsable = usuarioRepository.findById(req.responsableId()).orElse(null);
+            if (responsable == null) {
+                return ResponseEntity.badRequest().body(Map.of("errores", Map.of("responsableId", "Usuario no encontrado")));
+            }
+            ticket.setResponsable(responsable);
+        } else {
+            ticket.setResponsable(null);
+        }
         if (req.categoriaId() != null) {
             categoriaRepository.findById(req.categoriaId()).ifPresent(ticket::setCategoria);
         } else {
@@ -126,7 +165,9 @@ public class TicketController {
                 ? etiquetaRepository.findAllById(req.etiquetaIds())
                 : List.of();
         ticket.setEtiquetas(new HashSet<>(etqs));
-        return ResponseEntity.ok(repository.save(ticket));
+        Ticket guardado = repository.save(ticket);
+        slaService.aplicar(guardado);
+        return ResponseEntity.ok(guardado);
     }
 
     @PostMapping
@@ -140,6 +181,13 @@ public class TicketController {
             }
             nuevo.setCliente(cliente);
         }
+        if (req.responsableId() != null) {
+            Usuario responsable = usuarioRepository.findById(req.responsableId()).orElse(null);
+            if (responsable == null) {
+                return ResponseEntity.badRequest().body(Map.of("errores", Map.of("responsableId", "Usuario no encontrado")));
+            }
+            nuevo.setResponsable(responsable);
+        }
         if (req.categoriaId() != null) {
             categoriaRepository.findById(req.categoriaId()).ifPresent(nuevo::setCategoria);
         }
@@ -149,6 +197,7 @@ public class TicketController {
         Ticket guardado = repository.saveAndFlush(nuevo);
         // Volvemos a leerlo para devolver "numero" y "createdAt", que los genera la base.
         Ticket completo = repository.findById(guardado.getId()).orElse(guardado);
+        slaService.aplicar(completo);
         return ResponseEntity.status(HttpStatus.CREATED).body(completo);
     }
 
@@ -176,7 +225,9 @@ public class TicketController {
         Ticket ticket = repository.findById(id)
                 .orElseThrow(() -> new TicketNoEncontradoException(id));
         ticket.aplicarTransicion(accion);
-        return ResponseEntity.ok(repository.save(ticket));
+        Ticket guardado = repository.save(ticket);
+        slaService.aplicar(guardado);
+        return ResponseEntity.ok(guardado);
     }
 
     @ExceptionHandler(TransicionInvalidaException.class)

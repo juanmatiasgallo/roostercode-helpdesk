@@ -1,5 +1,6 @@
 package com.roostercode.helpdesk.auth;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -12,6 +13,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "usuario")
+@JsonIgnoreProperties({"password", "username", "authorities", "enabled",
+        "accountNonExpired", "accountNonLocked", "credentialsNonExpired"})
 public class Usuario implements UserDetails {
 
     @Id
@@ -50,6 +53,10 @@ public class Usuario implements UserDetails {
         this.activo = true;
         this.updatedAt = OffsetDateTime.now();
     }
+
+    public void setNombre(String nombre)   { this.nombre = nombre; }
+    public void setRol(RolUsuario rol)     { this.rol = rol; }
+    public void setActivo(boolean activo)  { this.activo = activo; }
 
     // ── UserDetails ───────────────────────────────────────────────────────────
     @Override

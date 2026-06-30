@@ -1,0 +1,1 @@
+ALTER TABLE ticket ADD COLUMN responsable_id UUID NULL REFERENCES usuario(id) ON DELETE SET NULL;

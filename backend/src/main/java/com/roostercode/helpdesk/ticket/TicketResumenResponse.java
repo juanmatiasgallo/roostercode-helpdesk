@@ -6,5 +6,7 @@ public record TicketResumenResponse(
         long resueltos,
         long cerrados,
         long total,
-        Double tiempoPromedioResolucionHoras
+        Double tiempoPromedioResolucionHoras,
+        long porVencer,
+        long vencidos
 ) {}
